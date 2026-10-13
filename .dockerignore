@@ -1,0 +1,10 @@
+.git
+.venv
+.tmp
+.pnpm-store
+**/node_modules
+**/.next
+**/*.db
+**/__pycache__
+.env
+logs
