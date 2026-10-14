@@ -11,10 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .database import get_session
+from .imports import router as import_router
 from .models import Facility
 from .risk import expected_loss, summarize
 
 app = FastAPI(title="AegisRisk", version="0.1.0", description="Synthetic educational demo only")
+app.include_router(import_router)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
