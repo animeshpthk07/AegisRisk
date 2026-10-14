@@ -86,7 +86,7 @@ def preview_csv(raw: bytes):
             for key in ("pd", "lgd", "ead"):
                 value = data[key]
                 scale = 2 if key == "ead" else 10
-                maximum = Decimal("1000000000000") if key == "ead" else Decimal(1)
+                maximum = Decimal(1_000_000_000_000) if key == "ead" else Decimal(1)
                 if (len(value) > 30 or not NUMBER.fullmatch(value)
                         or len(value.partition(".")[2]) > scale):
                     issue(record, key, "number", f"Use a non-negative decimal with <= {scale} places")
