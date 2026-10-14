@@ -13,7 +13,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - FastAPI / SQLAlchemy / Alembic backend, explicit seed of 40 fictional INR facilities.
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. Docker/PostgreSQL runtime remains unverified; CI results must be checked in GitHub Actions.
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
 
 ### How it works
 
@@ -30,9 +30,19 @@ Browser → fixed Next.js API proxy → FastAPI validation → SQLAlchemy databa
 - Browser verified: 40 facilities, INR 115,000,000 EAD, INR 2,769,125 expected loss.
 - Browser search: `SYN-001` returns exactly one facility.
 - Browser stress: PD ×1.5, LGD ×1.1, EAD ×1 returns a 65% EL increase (display-rounded INR 4,569,056).
-- Browser preview visibly confirmed at narrow pane width. Full accessibility/E2E suite and security scans remain outstanding.
-- Docker/PostgreSQL runtime: not tested; Docker is not installed.
-- Public hosted deployment: not verified. GitHub Actions: workflow being published; no passing result claimed yet.
+- Browser preview visibly confirmed at narrow pane width. Full accessibility/E2E coverage and broader security verification remain outstanding; CI dependency-audit steps passed.
+- Full Docker Compose runtime: not tested locally; PostgreSQL service migration/read smoke passed in GitHub CI.
+- Public hosted deployment: not verified. GitHub Actions: backend and frontend jobs passed for commit `423ea5b`.
+
+### Independent GitHub verification — 2026-10-14
+
+[Run #1](https://github.com/animeshpthk07/AegisRisk/actions/runs/38502931162) completed successfully for commit `423ea5bd6f99b9b5c1588827f51fb79d84f5e904`.
+
+- Backend job passed: install, lint, pytest, PostgreSQL migration/read smoke and pip-audit.
+- Frontend job passed: frozen-lockfile install, typecheck, unit tests, production build and production dependency audit.
+- GitHub displayed Node 20 action-runtime deprecation warnings and an upcoming runner-image migration notice. These are maintenance items, not a claim of a failed build.
+- Job/step outcomes were verified in the GitHub UI. Expanded log bodies failed to load in the browser, so test counts above remain the earlier local results.
+- A successful dependency audit is not a penetration test, regulatory validation or proof of production safety.
 
 ### What you can inspect
 
@@ -42,7 +52,7 @@ This is a foundation slice, not the completed AegisRisk product. ML, imports, re
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
-| M0 Foundation | In progress | Local isolated workspace; integration contract |
+| M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
 | M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; imports pending |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
@@ -52,7 +62,7 @@ This is a foundation slice, not the completed AegisRisk product. ML, imports, re
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Not started | |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
-| M10 Full verification | Not started | |
+| M10 Full verification | Partial | CI passed; full E2E, accessibility, Compose and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
 | Career presentation and learning | Not started | Begin after credible verified application |

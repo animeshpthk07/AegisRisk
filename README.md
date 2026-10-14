@@ -17,3 +17,13 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 **Not yet the complete product:** no trained ML model, CSV/XLSX imports, PDF reports or verified public deployment. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
+
+## Verified foundation checkpoint
+
+[GitHub verification run #1](https://github.com/animeshpthk07/AegisRisk/actions/runs/38502931162) passed on 14 October 2026: backend tests/lint, PostgreSQL migration/read smoke, frontend typecheck/tests/build, and dependency-audit steps. See the milestone tracker for scope and limitations.
+
+## Local demo preview
+
+![AegisRisk foundation dashboard using fictional portfolio data](docs/foundation-preview.jpg)
+
+This image is from the earlier locally verified foundation demo, not a hosted production release.
