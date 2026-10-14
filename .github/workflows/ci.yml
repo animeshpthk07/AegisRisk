@@ -1,0 +1,48 @@
+name: AegisRisk verification
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: aegisrisk
+          POSTGRES_PASSWORD: ci-only-password
+          POSTGRES_DB: aegisrisk
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aegisrisk -d aegisrisk"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e './apps/api[dev]'
+      - run: ruff check apps/api
+      - run: pytest apps/api/tests -q
+      - name: PostgreSQL migration and read-only smoke
+        working-directory: apps/api
+        env:
+          DATABASE_URL: postgresql+psycopg://aegisrisk:ci-only-password@localhost:5432/aegisrisk
+        run: |
+          alembic upgrade head
+          python -m aegisrisk.seed
+          python -c "from fastapi.testclient import TestClient; from aegisrisk.main import app; c=TestClient(app); assert c.get('/api/v1/ready').status_code == 200; assert c.get('/api/v1/portfolio').json()['summary']['facility_count'] == 40"
+      - run: pip-audit --skip-editable
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install -g pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm audit --prod
