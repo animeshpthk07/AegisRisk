@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-14. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-15. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -12,6 +12,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Next.js 16.4 / React 19.3 / TypeScript / Tailwind / Recharts frontend.
 - FastAPI / SQLAlchemy / Alembic backend, explicit seed of 40 fictional INR facilities.
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
+- Bounded synthetic CSV preview with row-level validation and independent risk totals; no database writes.
 - Deterministic narrative. No external AI provider or API credentials.
 - PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
 
@@ -19,7 +20,9 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 
 Browser → fixed Next.js API proxy → FastAPI validation → SQLAlchemy database reads → Decimal calculations → dashboard.
 
-### Actual checks so far
+CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validation → Decimal calculations → independent preview (no database writes).
+
+### Historical foundation checks (before CSV preview)
 
 - Backend: **25 tests passed**, one dependency deprecation warning (Starlette's httpx test-client integration).
 - Backend lint: **passed**, after fixing import/format issues.
@@ -44,21 +47,31 @@ Browser → fixed Next.js API proxy → FastAPI validation → SQLAlchemy databa
 - Job/step outcomes were verified in the GitHub UI. Expanded log bodies failed to load in the browser, so test counts above remain the earlier local results.
 - A successful dependency audit is not a penetration test, regulatory validation or proof of production safety.
 
+### CSV preview verification — 2026-10-15
+
+[Run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/38730979855) passed for commit `f0c0caf0d4ad47453c7ecbd2a197a70a992b084a`: backend and frontend jobs both succeeded. This covers the CSV API tests and the frontend typecheck/tests/production build, not a fresh interactive browser test of the new panel.
+
+- Preview accepts explicitly acknowledged synthetic UTF-8 CSV, at most 256 KiB / 1,000 rows. Invalid records produce field-level issues and no partial totals. It never saves uploaded data or replaces the active portfolio.
+- The dashboard provides a fictional example, a downloadable CSV, validation feedback and independent totals. Expected example: 2 records, INR 3,000 EAD and INR 66 one-year EL.
+- The failure email corresponds to [run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/38559344804): Ruff FURB157 rejected a verbose Decimal constructor at imports.py:89. Commit `f247e0f` corrected it; [run #4](https://github.com/animeshpthk07/AegisRisk/actions/runs/38559598226) and run #5 passed. The historical failed run remains in the audit trail.
+- Still unverified: interactive browser behavior of this new panel, full end-to-end coverage and public deployment. Existing action-runtime deprecation and runner-image migration warnings are maintenance items, not failed checks.
+- Next: verify valid, invalid and oversized uploads through the running dashboard; then implement persisted imports with explicit review and transaction tests. Preview success is not import persistence.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a foundation slice, not the completed AegisRisk product. ML, imports, reports, full security verification and career materials remain incomplete.
+This is a foundation slice, not the completed AegisRisk product. ML, persisted CSV/XLSX imports, reports, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
-| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; imports pending |
+| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview implemented, persisted CSV/XLSX imports pending |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity verified; broader scenarios pending |
-| M5 API | Partial | Versioned foundation endpoints and validation tests; full scope pending |
-| M6 Full frontend | Partial | Portfolio dashboard and scenario controls; full workbench pending |
+| M5 API | Partial | Versioned foundation endpoints plus bounded CSV preview and validation tests; full scope pending |
+| M6 Full frontend | Partial | Portfolio dashboard, scenario controls and CSV preview panel; new panel interactive verification and full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Not started | |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
