@@ -46,3 +46,47 @@ jobs:
       - run: pnpm test
       - run: pnpm build
       - run: pnpm audit --prod
+  browser:
+    name: Full-stack browser checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: sqlite:////tmp/aegisrisk-browser.db
+      API_BASE_URL: http://127.0.0.1:8000
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm install -g pnpm@11.25.0
+      - run: pnpm install --frozen-lockfile
+      - run: pip install -e './apps/api[dev]' playwright==1.64.0
+      - run: python -m playwright install --with-deps chromium
+      - run: ruff check --select E,F,I tests/browser
+      - run: pnpm build
+      - name: Prepare isolated fictional database
+        working-directory: apps/api
+        run: |
+          alembic upgrade head
+          python -m aegisrisk.seed
+      - name: Verify real browser to proxy to API flow
+        run: |
+          mkdir -p test-results
+          python -m uvicorn aegisrisk.main:app --host 127.0.0.1 --port 8000 > test-results/api.log 2>&1 &
+          api_pid=$!
+          pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000 > test-results/web.log 2>&1 &
+          web_pid=$!
+          trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' EXIT
+          python -m pytest tests/browser -q --junitxml=test-results/browser.xml
+      - name: Retain synthetic-only test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-check-evidence
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
