@@ -67,7 +67,7 @@ def page(browser, request):
     try:
         yield tab
     finally:
-        name = re.sub(r"[^A-Za-z0-9_-]", "_", request.node.name)
+        name = re.sub(r"[^A-Za-z0-9_-]", "_", request.node.name)[:120]
         try:
             tab.screenshot(path=str(ARTIFACTS / f"{name}.png"), full_page=True)
             context.tracing.stop(path=str(ARTIFACTS / f"{name}.zip"))
@@ -155,12 +155,14 @@ def test_invalid_probability_has_issues_and_no_partial_totals(page):
         ("empty.csv", b"", "non-empty CSV"),
         ("oversized.csv", b"x" * 262145, "non-empty CSV"),
     ],
+    ids=["wrong-extension", "empty", "oversized"],
 )
 def test_file_picker_rejects_unsupported_or_unbounded_files(
     page, name, content, message
 ):
     choose_file(page, name, content)
-    expect(page.get_by_role("alert")).to_contain_text(message)
+    alert = page.locator("#import-preview").get_by_role("alert")
+    expect(alert).to_contain_text(message)
     button = page.get_by_role("button", name="Validate and preview")
     expect(button).to_be_disabled()
 
@@ -174,6 +176,7 @@ def test_file_picker_rejects_unsupported_or_unbounded_files(
         ({"Content-Type": "text/csv",
           "X-AegisRisk-Synthetic": "true"}, b"x" * 262145, 413),
     ],
+    ids=["missing-consent", "wrong-content-type", "too-large"],
 )
 def test_proxy_enforces_acknowledgement_type_and_size(headers, body, status):
     response = httpx.post(
@@ -195,7 +198,8 @@ def test_backend_error_is_visible_and_retry_recovers(page):
     page.get_by_role("button", name="Use fictional example").click()
     page.get_by_role("checkbox", name=CONSENT).check()
     page.get_by_role("button", name="Validate and preview").click()
-    expect(page.get_by_role("alert")).to_contain_text("Simulated preview outage")
+    alert = page.locator("#import-preview").get_by_role("alert")
+    expect(alert).to_contain_text("Simulated preview outage")
     page.unroute("**/api/import-preview")
     response = submit(page)
     assert response.status == 200

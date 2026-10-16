@@ -55,6 +55,29 @@ pnpm audit --prod
 
 Use the virtual environment's Python. GitHub Actions is configured in the public repository. Check the latest run and job logs before relying on it; a YAML file is not evidence of successful CI.
 
+## Full-stack browser verification
+
+The GitHub Actions **Full-stack browser checks** job builds the production Next.js app, migrates and seeds an isolated SQLite database with 40 fictional facilities, starts the real FastAPI and web servers on loopback, and runs `tests/browser/test_csv_preview.py` in Chromium. This is separate from the PostgreSQL migration smoke and backend unit tests.
+
+Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. Only the outage test injects a response; the other preview requests use the actual proxy/API.
+
+To reproduce against a fresh, fictional-only local database, install the test dependency in the existing virtual environment:
+
+```text
+python -m pip install playwright==1.64.0
+python -m playwright install chromium
+```
+
+Start the migrated/seeded API as above. Build the web application with `pnpm build`, then start it with `pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000`. With both services running, from the repository root:
+
+```text
+python -m pytest tests/browser -q --junitxml=test-results/browser.xml
+```
+
+The tests expect the untouched 40-record fictional seed. Do not point them at customer data or a production service. The CI job installs Linux browser dependencies with `python -m playwright install --with-deps chromium`. Screenshots, traces, JUnit results and server logs are kept in ignored `test-results/`; the CI artifact `browser-check-evidence` expires after seven days. Traces contain request data, so retain synthetic inputs only. Check the actual run result before calling the checkpoint verified.
+
+This does not certify full accessibility, Firefox/WebKit compatibility, load capacity, production upload security, persisted imports or hosted deployment.
+
 ## Learn the foundation
 
 1. Liveness asks whether the API responds; readiness asks whether the database and expected schema are accessible.
