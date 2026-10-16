@@ -252,7 +252,7 @@ def test_reviewed_snapshot_round_trip_and_reload(page):
     expect(metrics).to_contain_text("1 fictional facilities")
     expect(metrics).to_contain_text("1,000")
     expect(metrics).to_contain_text("₹50")
-    expect(page.locator(".insight")).to_contain_text("50.00")
+    expect(page.locator("section.insight")).to_contain_text("50.00")
     page.get_by_label("PD multiplier", exact=True).fill("2")
     page.get_by_label("LGD multiplier", exact=True).fill("1")
     page.get_by_role("button", name="Calculate scenario →", exact=True).click()

@@ -59,7 +59,7 @@ Use the virtual environment's Python. GitHub Actions is configured in the public
 
 The GitHub Actions **Full-stack browser checks** job builds the production Next.js app, migrates and seeds an isolated SQLite database with 40 fictional facilities, starts the real FastAPI and web servers on loopback, and runs `tests/browser/test_csv_preview.py` in Chromium. This is separate from the PostgreSQL migration smoke and backend unit tests.
 
-Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. Only the outage test injects a response; the other preview requests use the actual proxy/API.
+Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. The outage, disabled-capability and delayed-response tests deliberately inject responses. Ordinary preview and snapshot round-trip requests use the actual proxy/API. Snapshot checks cover reviewed saving, duplicate-byte reuse, reopen after reload, confirmation invalidation and switching away from an in-flight scenario.
 
 To reproduce against a fresh, fictional-only local database, install the test dependency in the existing virtual environment:
 
@@ -68,7 +68,7 @@ python -m pip install playwright==1.64.0
 python -m playwright install chromium
 ```
 
-Start the migrated/seeded API as above. Build the web application with `pnpm build`, then start it with `pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000`. With both services running, from the repository root:
+For this isolated test run, set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process, then start the migrated/seeded API as above. Build the web application with `pnpm build`, then start it with `pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000`. With both services running, from the repository root:
 
 ```text
 python -m pytest tests/browser -q --junitxml=test-results/browser.xml
@@ -76,7 +76,7 @@ python -m pytest tests/browser -q --junitxml=test-results/browser.xml
 
 The tests expect the untouched 40-record fictional seed. Do not point them at customer data or a production service. The CI job installs Linux browser dependencies with `python -m playwright install --with-deps chromium`. Screenshots, traces, JUnit results and server logs are kept in ignored `test-results/`; the CI artifact `browser-check-evidence` expires after seven days. Traces contain request data, so retain synthetic inputs only. Check the actual run result before calling the checkpoint verified.
 
-This does not certify full accessibility, Firefox/WebKit compatibility, load capacity, production upload security, persisted imports or hosted deployment.
+This does not certify full accessibility, Firefox/WebKit compatibility, load capacity, production upload security, multi-user storage or hosted deployment.
 
 ## Learn the foundation
 
@@ -86,3 +86,17 @@ This does not certify full accessibility, Firefox/WebKit compatibility, load cap
 4. Portfolio EL sums facility losses. Multiplying separately averaged PD and LGD is not generally equivalent.
 5. HHI aggregates by borrower before squaring exposure shares; multiple facilities must not disguise borrower concentration.
 6. A stress multiplier demonstrates sensitivity. It is not evidence that a macroeconomic shock causes the chosen probability change.
+
+## Opt-in synthetic saved portfolios
+
+Apply `alembic upgrade head` before starting the API; migration `0002` adds a separate snapshot table without replacing seeded facilities. The default is read-only preview. For a local, single-user fictional-data session only, enable saving in the backend terminal before starting the API:
+
+```powershell
+$env:SYNTHETIC_IMPORTS_ENABLED = 'true'
+```
+
+On Unix, use `export SYNTHETIC_IMPORTS_ENABLED=true`. The frontend discovers the capability from the API; no frontend secret or external AI service is needed. Disabling this flag prevents saving and access to saved portfolios but does not delete their stored data. The built-in demo and preview remain available.
+
+Use the UI to preview, review, save and explicitly open a snapshot. Reload resets the active selection to the demo; use the saved catalog to reopen. Byte-identical retries reuse the original record and name. A save that times out is not necessarily absent: retry the same file to resolve the outcome without duplicates.
+
+Do not enable this flag on public/shared deployments. Authentication, authorization, tenant isolation, aggregate storage quotas and retention/deletion controls are not implemented. The per-file 256 KiB and 1,000-row limits are not a total storage budget. This milestone is not a production ingestion service.
