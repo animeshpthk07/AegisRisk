@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -319,13 +319,28 @@ def test_saved_list_pagination_and_unknown_ids(saved_client):
 
 
 def test_storage_error_leaves_no_partial_snapshot(saved_client, monkeypatch):
-    def broken_commit(self):
+    flushed = []
+    before = saved_client.get("/api/v1/portfolio").json()
+
+    def broken_commit(session):
+        session.flush()
+        flushed.append(session.scalar(select(func.count()).select_from(SavedPortfolio)))
         raise SQLAlchemyError("private storage details must not be returned")
-    monkeypatch.setattr(Session, "commit", broken_commit)
-    response = save_csv(saved_client)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Session, "commit", broken_commit)
+        response = save_csv(saved_client)
+    assert flushed == [1]
     assert response.status_code == 503
     assert response.json() == {"detail": "Data service unavailable"}
-    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+    listing = saved_client.get("/api/v1/saved-portfolios").json()
+    assert listing["total"] == 0
+    assert listing["items"] == []
+    assert saved_client.get("/api/v1/portfolio").json() == before
+    retry = save_csv(saved_client)
+    assert retry.status_code == 201
+    assert retry.json()["created"] is True
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 1
 
 
 def test_corrupt_snapshot_fails_closed(saved_client):

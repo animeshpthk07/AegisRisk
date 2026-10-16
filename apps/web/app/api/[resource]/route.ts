@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation']);
-const writes = new Set(['stress', 'import-preview']);
+const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation', 'saved-portfolios']);
+const writes = new Set(['stress', 'import-preview', 'saved-portfolios']);
 const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 function error(detail: string, status: number) {
   return NextResponse.json({ detail }, { status, headers: safeHeaders });
@@ -12,7 +12,8 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
   if (!(request.method === 'GET' ? reads.has(resource) : writes.has(resource))) {
     return error('Not found', 404);
   }
-  const csv = resource === 'import-preview';
+  const saving = resource === 'saved-portfolios';
+  const csv = resource === 'import-preview' || saving;
   const headers: Record<string, string> = { 'Content-Type': csv ? 'text/csv' : 'application/json' };
   let body: ArrayBuffer | undefined;
   if (request.method === 'POST') {
@@ -24,6 +25,15 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
         return error('Send a UTF-8 CSV file', 415);
       }
       headers['X-AegisRisk-Synthetic'] = 'true';
+      if (saving) {
+        if (request.headers.get('x-aegisrisk-reviewed') !== 'true') {
+          return error('Review the preview and confirm saving', 400);
+        }
+        const digest = request.headers.get('x-aegisrisk-preview-digest') || '';
+        if (!/^[a-f0-9]{64}$/.test(digest)) return error('Validate the file again', 409);
+        headers['X-AegisRisk-Reviewed'] = 'true';
+        headers['X-AegisRisk-Preview-Digest'] = digest;
+      }
     }
     const limit = csv ? 262144 : 4096;
     const reader = request.body?.getReader();

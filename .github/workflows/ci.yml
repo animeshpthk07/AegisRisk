@@ -29,8 +29,9 @@ jobs:
         env:
           DATABASE_URL: postgresql+psycopg://aegisrisk:ci-only-password@localhost:5432/aegisrisk
         run: |
-          alembic upgrade head
+          alembic upgrade 0001
           python -m aegisrisk.seed
+          alembic upgrade head
           python -c "from fastapi.testclient import TestClient; from aegisrisk.main import app; c=TestClient(app); assert c.get('/api/v1/ready').status_code == 200; assert c.get('/api/v1/portfolio').json()['summary']['facility_count'] == 40"
       - run: pip-audit --skip-editable
   frontend:
@@ -54,6 +55,7 @@ jobs:
       DATABASE_URL: sqlite:////tmp/aegisrisk-browser.db
       API_BASE_URL: http://127.0.0.1:8000
       NEXT_TELEMETRY_DISABLED: '1'
+      SYNTHETIC_IMPORTS_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

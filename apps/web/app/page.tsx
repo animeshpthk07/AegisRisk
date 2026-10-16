@@ -1,14 +1,14 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { money, percent } from '../lib/format.mjs';
-import CsvPreview from './csv-preview';
+import CsvPreview, { type SavedPortfolio } from './csv-preview';
 
 type Facility = { id: string; borrower: string; industry: string; geography: string; rating: string; pd: number; lgd: number; ead: number; expected_loss: number };
-type Portfolio = { dataset_version: string; summary: { facility_count: number; total_ead: number; total_expected_loss: number; weighted_pd: number | null; weighted_lgd: number | null; borrower_hhi: number | null }; facilities: Facility[]; segments: { industry: string; ead: number; expected_loss: number; share: number }[]; warnings: string[] };
+type Portfolio = { dataset_id: string | null; dataset_version: string; summary: { facility_count: number; total_ead: number; total_expected_loss: number; weighted_pd: number | null; weighted_lgd: number | null; borrower_hhi: number | null }; facilities: Facility[]; segments: { industry: string; ead: number; expected_loss: number; share: number }[]; warnings: string[] };
 type Stress = { baseline_el: number; stressed_el: number; delta_el: number; delta_pct: number | null; assumptions: string[] };
-async function read(path: string) {
-  const response = await fetch(`/api/${path}`);
+async function read(path: string, signal?: AbortSignal) {
+  const response = await fetch(`/api/${path}`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('The data service is unavailable. Check the API, migration and demo seed.');
   return response.json();
 }
@@ -26,19 +26,78 @@ export default function Dashboard() {
   const [stressError, setStressError] = useState('');
   const [busy, setBusy] = useState(false);
   const [light, setLight] = useState(false);
-  useEffect(() => {
-    Promise.all([read('health'), read('ready'), read('portfolio'), read('explanation')])
-      .then(([, , portfolio, explanation]) => { setConnected(true); setData(portfolio); setNarrative(explanation.text); })
-      .catch((err) => setError(err.message));
-  }, []);
-  async function runStress(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true); setStressError(''); setResult(null);
+  const [datasetId, setDatasetId] = useState('');
+  const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
+  const [savingEnabled, setSavingEnabled] = useState(false);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const [nextOffset, setNextOffset] = useState(0);
+  const [catalogTotal, setCatalogTotal] = useState(0);
+  const loadVersion = useRef(0);
+  const stressAbort = useRef<AbortController | null>(null);
+  const catalogAbort = useRef<AbortController | null>(null);
+  const suffix = datasetId ? '?dataset_id=' + encodeURIComponent(datasetId) : '';
+  function chooseDataset(id: string) {
+    if (id === datasetId) return;
+    loadVersion.current += 1;
+    stressAbort.current?.abort(); stressAbort.current = null;
+    setDatasetId(id); setData(null); setNarrative(''); setError(''); setConnected(false);
+    setResult(null); setStressError(''); setBusy(false); setQuery(''); setIndustry('');
+  }
+  async function loadCatalog(offset = 0) {
+    catalogAbort.current?.abort();
+    const controller = new AbortController(); catalogAbort.current = controller;
+    setCatalogBusy(true); setCatalogError('');
     try {
-      const response = await fetch('/api/stress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pd_multiplier: Number(pd), lgd_multiplier: Number(lgd), ead_multiplier: Number(ead), industry: industry || null }) });
+      const catalog = await read('saved-portfolios?limit=100&offset=' + offset, controller.signal);
+      if (catalogAbort.current !== controller || controller.signal.aborted) return;
+      if (typeof catalog.enabled !== 'boolean' || !Array.isArray(catalog.items)) throw new Error('Invalid saved-portfolio response.');
+      setSavingEnabled(catalog.enabled);
+      setSavedPortfolios(previous => Array.from(new Map<string, SavedPortfolio>(
+        [...(offset ? previous : []), ...catalog.items].map(item => [item.id, item])
+      ).values()));
+      setNextOffset(offset + catalog.items.length); setCatalogTotal(catalog.total);
+    } catch (err) {
+      if (catalogAbort.current === controller && !controller.signal.aborted) setCatalogError(err instanceof Error ? err.message : 'Saved portfolios unavailable.');
+    } finally {
+      if (catalogAbort.current === controller) { setCatalogBusy(false); catalogAbort.current = null; }
+    }
+  }
+  function rememberSaved(portfolio: SavedPortfolio) {
+    catalogAbort.current?.abort(); catalogAbort.current = null; setCatalogBusy(false); setCatalogError('');
+    setSavedPortfolios(previous => [portfolio, ...previous.filter(item => item.id !== portfolio.id)]);
+  }
+  useEffect(() => {
+    void loadCatalog();
+    return () => { catalogAbort.current?.abort(); stressAbort.current?.abort(); };
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController(); const version = ++loadVersion.current;
+    setData(null); setNarrative(''); setConnected(false); setError('');
+    Promise.all([read('health', controller.signal), read('ready', controller.signal), read('portfolio' + suffix, controller.signal), read('explanation' + suffix, controller.signal)])
+      .then(([, , portfolio, explanation]) => {
+        if (controller.signal.aborted || version !== loadVersion.current) return;
+        if ((portfolio.dataset_id || '') !== datasetId) throw new Error('The selected dataset could not be verified.');
+        setConnected(true); setData(portfolio); setNarrative(explanation.text);
+      })
+      .catch(err => { if (!controller.signal.aborted && version === loadVersion.current) setError(err instanceof Error ? err.message : 'Portfolio unavailable.'); });
+    return () => controller.abort();
+  }, [datasetId, suffix]);
+  async function runStress(event: React.FormEvent) {
+    event.preventDefault();
+    if (!data || busy || (data.dataset_id || '') !== datasetId) return;
+    const version = loadVersion.current; const controller = new AbortController(); stressAbort.current = controller;
+    setBusy(true); setStressError(''); setResult(null);
+    try {
+      const response = await fetch('/api/stress' + suffix, { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pd_multiplier: Number(pd), lgd_multiplier: Number(lgd), ead_multiplier: Number(ead), industry: industry || null }) });
       if (!response.ok) throw new Error('Stress calculation failed. Use multipliers between 0 and 10.');
-      setResult(await response.json());
-    } catch (err) { setStressError(err instanceof Error ? err.message : 'Calculation unavailable'); }
-    finally { setBusy(false); }
+      const calculated = await response.json();
+      if (!controller.signal.aborted && version === loadVersion.current && stressAbort.current === controller) setResult(calculated);
+    } catch (err) {
+      if (!controller.signal.aborted && version === loadVersion.current && stressAbort.current === controller) setStressError(err instanceof Error ? err.message : 'Calculation unavailable');
+    } finally {
+      if (version === loadVersion.current && stressAbort.current === controller) { setBusy(false); stressAbort.current = null; }
+    }
   }
   const rows = data?.facilities.filter((r) => `${r.id} ${r.borrower} ${r.industry}`.toLowerCase().includes(query.toLowerCase())) || [];
   return <div className={light ? 'app light' : 'app'}>
@@ -50,6 +109,7 @@ export default function Dashboard() {
     <main><header><div className="breadcrumb">WORKSPACE <span>/</span> CREDIT RISK</div><button onClick={() => setLight(!light)} aria-label="Toggle light and dark theme">{light ? 'Dark theme' : 'Light theme'}</button></header>
       <div className="title-row" id="overview"><div><p className="eyebrow">PORTFOLIO MONITOR · ONE-YEAR HORIZON</p><h1>Clarity behind every exposure.</h1><p className="subtitle">Credit risk, concentration and scenario sensitivity in one transparent view.</p></div><span className="badge">SYNTHETIC DEMO</span></div>
       <div className="status"><span className={connected ? 'dot' : 'dot pending'}/>{connected ? 'API + database connected' : error ? 'Connection unavailable' : 'Connecting to backend…'}<span>INR · {data?.dataset_version || 'Awaiting dataset'} · No external AI</span></div>
+      <section className="panel" aria-label="Dataset selection"><label htmlFor="active-portfolio">Active portfolio</label><select id="active-portfolio" value={datasetId} onChange={event => chooseDataset(event.target.value)}><option value="">Built-in fictional demo (40 facilities)</option>{savedPortfolios.map(item => <option key={item.id} value={item.id}>{item.name} · {item.row_count} facilities</option>)}</select><p className="muted">Saved snapshots stay separate from the demo. Switching portfolios clears the previous scenario and calculation note.</p><div className="preview-actions"><button onClick={() => void loadCatalog()} disabled={catalogBusy}>Refresh saved portfolios</button>{nextOffset < catalogTotal && <button onClick={() => void loadCatalog(nextOffset)} disabled={catalogBusy}>Load more portfolios</button>}{catalogBusy && <span role="status">Loading saved portfolios…</span>}</div>{catalogError && <p role="alert">{catalogError}</p>}</section>
       {error && <div role="alert" className="warning">{error} <button onClick={() => window.location.reload()}>Retry</button></div>}
       {!data && !error && <p role="status" className="panel">Loading calculated portfolio metrics…</p>}
       {data && <><section className="kpis" aria-label="Portfolio metrics">
@@ -62,8 +122,8 @@ export default function Dashboard() {
       <section className="insight"><span className="eyebrow">CALCULATION NOTE · DETERMINISTIC</span><p>{narrative}</p><small>No credit recommendation. Figures are derived from the displayed dataset.</small></section>
       <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div><div className="table-scroll"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted">Showing {rows.length} of {data.facilities.length} facilities. Demo inputs—not predictions.</p></section>
       <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}><div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>setPd(e.target.value)}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>setLgd(e.target.value)}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>setEad(e.target.value)}/></label><label>Scope<select value={industry} onChange={e=>setIndustry(e.target.value)}><option value="">Whole portfolio</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p></div>}</section>
-      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV validation is available below without saving data. ML training, persisted imports, XLSX, report exports and deployment remain future milestones. No real banking data is used.</p></section></>}
-      <CsvPreview/>
+      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV previews never save data. On explicitly enabled single-user instances, reviewed files can be saved as separate, immutable portfolios. ML training, XLSX, report exports, authentication and public deployment remain future milestones. No real banking data is used.</p></section></>}
+      <CsvPreview enabled={savingEnabled} onSaved={rememberSaved} onOpen={chooseDataset}/>
       <footer>MATHEMATICS CALCULATES. MODELS ESTIMATE. AI EXPLAINS. HUMANS DECIDE.<span>AegisRisk · Educational portfolio project · Not affiliated with any bank</span></footer>
     </main>
   </div>;
