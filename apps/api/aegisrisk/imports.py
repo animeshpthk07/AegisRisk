@@ -2,6 +2,7 @@
 
 import csv
 import io
+from hashlib import sha256
 import re
 from dataclasses import dataclass
 from decimal import Decimal
@@ -24,13 +25,17 @@ IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,31}", re.ASCII)
 
 @dataclass(frozen=True)
 class PreviewFacility:
+    id: str
     borrower: str
+    industry: str
+    geography: str
+    rating: str
     pd: Decimal
     lgd: Decimal
     ead: Decimal
 
 
-def preview_csv(raw: bytes):
+def parse_csv(raw: bytes):
     if len(raw) > MAX_BYTES:
         raise HTTPException(413, "CSV exceeds the 256 KiB limit")
     try:
@@ -97,7 +102,7 @@ def preview_csv(raw: bytes):
                 else:
                     numbers[key] = number
             if issue_count == before:
-                rows.append(PreviewFacility(borrower=data["borrower"], **numbers))
+                rows.append(PreviewFacility(**{key: data[key] for key in TEXT_LIMITS}, **numbers))
             else:
                 invalid_rows += 1
     except csv.Error:
@@ -107,6 +112,7 @@ def preview_csv(raw: bytes):
     valid = issue_count == 0
     return {
         "valid": valid,
+        "digest": sha256(raw).hexdigest(),
         "persisted": False,
         "synthetic_acknowledged": True,
         "currency": "INR",
@@ -124,11 +130,15 @@ def preview_csv(raw: bytes):
             "No trained model, IFRS 9 ECL, regulatory capital or credit decision is produced.",
             "Duplicate checks cover this file only, not the stored portfolio.",
         ],
-    }
+    }, rows
 
 
-@router.post("/api/v1/import-preview")
-async def import_preview(request: Request):
+def preview_csv(raw: bytes):
+    result, _ = parse_csv(raw)
+    return result
+
+
+async def read_csv_body(request: Request):
     if request.headers.get("x-aegisrisk-synthetic") != "true":
         raise HTTPException(400, "Confirm synthetic data only before previewing")
     if request.headers.get("content-type", "").split(";")[0].strip().lower() != "text/csv":
@@ -138,5 +148,10 @@ async def import_preview(request: Request):
         if len(raw) + len(chunk) > MAX_BYTES:
             raise HTTPException(413, "CSV exceeds the 256 KiB limit")
         raw.extend(chunk)
-    result = preview_csv(bytes(raw))
+    return bytes(raw)
+
+
+@router.post("/api/v1/import-preview")
+async def import_preview(request: Request):
+    result = preview_csv(await read_csv_body(request))
     return JSONResponse(status_code=200 if result["valid"] else 422, content=result)

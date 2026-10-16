@@ -1,16 +1,19 @@
 import csv
 import io
 from decimal import Decimal
+from hashlib import sha256
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from aegisrisk.database import Base, get_session
 from aegisrisk.main import app
-from aegisrisk.models import Facility
+from aegisrisk.models import Facility, SavedPortfolio
 
 
 @pytest.fixture
@@ -215,3 +218,126 @@ def test_preview_bounds_error_output(client):
     assert len(data["issues"]) == 100
     assert data["issues_truncated"] is True
     assert data["summary"] is None
+
+
+@pytest.fixture
+def saved_client(client, monkeypatch):
+    monkeypatch.setenv("SYNTHETIC_IMPORTS_ENABLED", "true")
+    return client
+
+
+def save_csv(client, body=None, **header_overrides):
+    body = csv_body() if body is None else body
+    headers = PREVIEW_HEADERS | {
+        "x-aegisrisk-reviewed": "true",
+        "x-aegisrisk-preview-digest": sha256(body).hexdigest(),
+    } | header_overrides
+    return client.post("/api/v1/saved-portfolios?name=Fictional%20test", content=body,
+                       headers=headers)
+
+
+def test_saving_is_disabled_by_default(client, monkeypatch):
+    monkeypatch.delenv("SYNTHETIC_IMPORTS_ENABLED", raising=False)
+    assert client.get("/api/v1/saved-portfolios").json()["enabled"] is False
+    assert save_csv(client).status_code == 403
+    assert preview(client, csv_body()).status_code == 200
+
+
+def test_save_roundtrip_is_independent_and_idempotent(saved_client):
+    client = saved_client
+    before = client.get("/api/v1/portfolio").json()
+    row = CSV_ROW.copy()
+    row[5:8] = ["0.2", "0.5", "3210.99"]
+    body = b"\xef\xbb\xbf" + csv_body([row])
+    reviewed = preview(client, body).json()
+    assert reviewed["digest"] == sha256(body).hexdigest()
+    response = save_csv(client, body)
+    assert response.status_code == 201
+    saved = response.json()["portfolio"]
+    assert "csv_text" not in saved
+    assert saved["digest"] == reviewed["digest"]
+    params = {"dataset_id": saved["id"]}
+    selected = client.get("/api/v1/portfolio", params=params).json()
+    assert selected["summary"] == reviewed["summary"]
+    assert selected["facilities"][0]["id"] == CSV_ROW[0]
+    assert selected["facilities"][0]["ead"] == 3210.99
+    assert selected["dataset_id"] == saved["id"]
+    exposures = client.get("/api/v1/facilities", params=params | {"q": "orchard"}).json()
+    assert exposures["total"] == 1
+    stress = client.post("/api/v1/stress", params=params,
+                         json={"pd_multiplier": 2, "lgd_multiplier": 1}).json()
+    assert stress["baseline_el"] == 321.099
+    assert stress["stressed_el"] == 642.198
+    assert "321.10" in client.get("/api/v1/explanation", params=params).json()["text"]
+    retry = save_csv(client, body)
+    assert retry.status_code == 200
+    assert retry.json()["created"] is False
+    assert retry.json()["portfolio"] == saved
+    assert client.get("/api/v1/saved-portfolios").json()["total"] == 1
+    assert client.get("/api/v1/portfolio").json() == before
+
+
+@pytest.mark.parametrize("header,value,status", [
+    ("x-aegisrisk-reviewed", "false", 400),
+    ("x-aegisrisk-synthetic", "false", 400),
+    ("x-aegisrisk-preview-digest", "0" * 64, 409),
+    ("content-type", "application/json", 415),
+])
+def test_save_guards_write_nothing(saved_client, header, value, status):
+    assert save_csv(saved_client, **{header: value}).status_code == status
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+
+
+def test_invalid_or_changed_csv_cannot_be_saved(saved_client):
+    invalid = CSV_ROW.copy()
+    invalid[0] = "SYN-BAD"
+    invalid[5] = "2"
+    result = save_csv(saved_client, csv_body([CSV_ROW, invalid]))
+    assert result.status_code == 422
+    assert result.json()["persisted"] is False
+    assert save_csv(saved_client, b"x" * 262_145).status_code == 413
+    assert save_csv(saved_client, b"not,csv").status_code == 422
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+
+
+@pytest.mark.parametrize("name", ["", " " * 3, "=formula", "x" * 81, "two\nlines"])
+def test_save_rejects_invalid_names(saved_client, name):
+    result = saved_client.post("/api/v1/saved-portfolios", params={"name": name},
+                               content=csv_body(), headers=PREVIEW_HEADERS)
+    assert result.status_code == 422
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+
+
+def test_saved_list_pagination_and_unknown_ids(saved_client):
+    save_csv(saved_client)
+    assert saved_client.get("/api/v1/saved-portfolios?offset=1").json()["items"] == []
+    assert saved_client.get("/api/v1/saved-portfolios?limit=101").status_code == 422
+    for resource in ("portfolio", "facilities", "explanation"):
+        assert saved_client.get(f"/api/v1/{resource}?dataset_id={uuid4()}").status_code == 404
+        assert saved_client.get(f"/api/v1/{resource}?dataset_id=invalid").status_code == 422
+    assert saved_client.post(f"/api/v1/stress?dataset_id={uuid4()}", json={}).status_code == 404
+
+
+def test_storage_error_leaves_no_partial_snapshot(saved_client, monkeypatch):
+    def broken_commit(self):
+        raise SQLAlchemyError("private storage details must not be returned")
+    monkeypatch.setattr(Session, "commit", broken_commit)
+    response = save_csv(saved_client)
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Data service unavailable"}
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+
+
+def test_corrupt_snapshot_fails_closed(saved_client):
+    saved = save_csv(saved_client).json()["portfolio"]
+    sessions = app.dependency_overrides[get_session]()
+    session = next(sessions)
+    try:
+        snapshot = session.get(SavedPortfolio, saved["id"])
+        snapshot.csv_text = snapshot.csv_text.replace("1000.00", "2000.00")
+        session.commit()
+    finally:
+        sessions.close()
+    response = saved_client.get("/api/v1/portfolio", params={"dataset_id": saved["id"]})
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Saved portfolio integrity check failed"}

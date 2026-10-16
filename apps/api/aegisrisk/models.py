@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Numeric, String
+from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -21,3 +21,18 @@ class Facility(Base):
     pd: Mapped[Decimal] = mapped_column(Numeric(12, 10))
     lgd: Mapped[Decimal] = mapped_column(Numeric(12, 10))
     ead: Mapped[Decimal] = mapped_column(Numeric(20, 2))
+
+
+class SavedPortfolio(Base):
+    """Immutable synthetic CSV snapshot; never merged into seeded facilities."""
+
+    __tablename__ = "saved_portfolios"
+    __table_args__ = (
+        CheckConstraint("row_count >= 1 AND row_count <= 1000", name="valid_row_count"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    csv_text: Mapped[str] = mapped_column(Text)
+    row_count: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[str] = mapped_column(String(32))

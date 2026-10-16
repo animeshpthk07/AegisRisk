@@ -2,6 +2,7 @@ import logging
 from collections import defaultdict
 from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.responses import JSONResponse
@@ -12,11 +13,14 @@ from sqlalchemy.orm import Session
 
 from .database import get_session
 from .imports import router as import_router
-from .models import Facility
+from .models import Facility, SavedPortfolio
 from .risk import expected_loss, summarize
+from .snapshots import load_rows
+from .snapshots import router as snapshot_router
 
 app = FastAPI(title="AegisRisk", version="0.1.0", description="Synthetic educational demo only")
 app.include_router(import_router)
+app.include_router(snapshot_router)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
@@ -43,6 +47,7 @@ def health():
 def ready(session: SessionDep):
     session.execute(text("SELECT 1"))
     session.execute(select(Facility.id).limit(1))
+    session.execute(select(SavedPortfolio.id).limit(1))
     return {"status": "ok", "database": "connected"}
 
 
@@ -58,15 +63,16 @@ def serialize(row):
 
 
 @app.get("/api/v1/portfolio")
-def portfolio(session: SessionDep):
-    rows = list(session.scalars(select(Facility).order_by(Facility.id)))
+def portfolio(session: SessionDep, dataset_id: UUID | None = None):
+    rows = load_rows(session, dataset_id)
     summary = summarize(rows)
     groups = defaultdict(lambda: {"ead": 0.0, "expected_loss": 0.0})
     for row in rows:
         groups[row.industry]["ead"] += float(row.ead)
         groups[row.industry]["expected_loss"] += float(expected_loss(row.pd, row.lgd, row.ead))
     return {
-        "dataset_version": "demo-v1",
+        "dataset_version": f"saved-v1:{dataset_id}" if dataset_id else "demo-v1",
+        "dataset_id": str(dataset_id) if dataset_id else None,
         "currency": "INR",
         "horizon": "one_year",
         "synthetic": True,
@@ -95,13 +101,13 @@ def facilities(
     industry: str | None = Query(None, max_length=50),
     offset: int = Query(0, ge=0),
     limit: int = Query(25, ge=1, le=100),
+    dataset_id: UUID | None = None,
 ):
-    query = select(Facility).order_by(Facility.id)
+    rows = load_rows(session, dataset_id)
     if q:
-        query = query.where(Facility.borrower.contains(q, autoescape=True))
+        rows = [row for row in rows if q.casefold() in row.borrower.casefold()]
     if industry:
-        query = query.where(Facility.industry == industry)
-    rows = list(session.scalars(query))
+        rows = [row for row in rows if row.industry == industry]
     return {
         "items": [serialize(row) for row in rows[offset : offset + limit]],
         "total": len(rows),
@@ -119,8 +125,8 @@ class StressInput(BaseModel):
 
 
 @app.post("/api/v1/stress")
-def stress(config: StressInput, session: SessionDep):
-    rows = list(session.scalars(select(Facility)))
+def stress(config: StressInput, session: SessionDep, dataset_id: UUID | None = None):
+    rows = load_rows(session, dataset_id)
     if config.industry and config.industry not in {r.industry for r in rows}:
         return JSONResponse(status_code=422, content={"detail": "Unknown industry"})
     baseline = sum((expected_loss(r.pd, r.lgd, r.ead) for r in rows), Decimal(0))
@@ -148,8 +154,8 @@ def stress(config: StressInput, session: SessionDep):
 
 
 @app.get("/api/v1/explanation")
-def explanation(session: SessionDep):
-    stats = summarize(list(session.scalars(select(Facility))))
+def explanation(session: SessionDep, dataset_id: UUID | None = None):
+    stats = summarize(load_rows(session, dataset_id))
     return {
         "mode": "deterministic",
         "text": f"This fictional portfolio contains {stats['facility_count']} facilities with INR {stats['total_ead']:,.2f} exposure at default. Summing PD × LGD × EAD for each facility gives one-year expected loss of INR {stats['total_expected_loss']:,.2f}.",
