@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-15. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-16. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -54,8 +54,19 @@ CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validat
 - Preview accepts explicitly acknowledged synthetic UTF-8 CSV, at most 256 KiB / 1,000 rows. Invalid records produce field-level issues and no partial totals. It never saves uploaded data or replaces the active portfolio.
 - The dashboard provides a fictional example, a downloadable CSV, validation feedback and independent totals. Expected example: 2 records, INR 3,000 EAD and INR 66 one-year EL.
 - The failure email corresponds to [run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/38559344804): Ruff FURB157 rejected a verbose Decimal constructor at imports.py:89. Commit `f247e0f` corrected it; [run #4](https://github.com/animeshpthk07/AegisRisk/actions/runs/38559598226) and run #5 passed. The historical failed run remains in the audit trail.
-- Still unverified: interactive browser behavior of this new panel, full end-to-end coverage and public deployment. Existing action-runtime deprecation and runner-image migration warnings are maintenance items, not failed checks.
-- Next: verify valid, invalid and oversized uploads through the running dashboard; then implement persisted imports with explicit review and transaction tests. Preview success is not import persistence.
+- At this checkpoint, interactive browser behavior was still unverified; the 2026-10-16 full-stack checkpoint below supersedes that limitation for the tested CSV-preview flows. Full application coverage and public deployment remain incomplete.
+
+### Full-stack CSV browser verification — 2026-10-16
+
+[Run #8](https://github.com/animeshpthk07/AegisRisk/actions/runs/38855476887) passed for commit `5e8ce09e82e8452d037ebc8d069c999ee8a497c4`. GitHub showed backend (37s), frontend (25s) and Full-stack browser checks (1m 8s) all successful.
+
+- Chromium exercised the production Next.js server, fixed proxy, real FastAPI and isolated SQLite database with the 40-record fictional seed. The existing backend job separately checks PostgreSQL migration/read readiness.
+- Covered consent gating, desktop/mobile example previews, CSV download, UTF-8 BOM upload, exact EAD/EL, invalid PD with no partial totals, unsupported/empty/oversized files, proxy guards and recovery from one explicitly simulated 503. Portfolio summary totals are checked before and after each case.
+- [Run #7](https://github.com/animeshpthk07/AegisRisk/actions/runs/38782651556) exposed test-harness defects: global alert locators also matched the Next.js route announcer, and an oversized fixture payload became an oversized evidence filename. Explicit test IDs, bounded filenames and panel-scoped locators resolved them without weakening assertions or changing application behavior. The historical failure remains visible.
+- Screenshots, traces, JUnit results and server logs are available in the synthetic-only `browser-check-evidence` artifact for seven days. Follow [DEVELOPMENT.md](DEVELOPMENT.md#full-stack-browser-verification) to reproduce.
+- Job success was verified in GitHub. The successful test step's expanded log did not load reliably, so no new exact test-count claim is made here. Existing action-runtime and runner-image notices remain maintenance items.
+- This is limited full-stack CSV-preview coverage, not complete E2E/accessibility/security certification, persisted imports, Firefox/WebKit coverage or hosted deployment.
+- Next: persisted synthetic imports with explicit review, atomic database transactions, duplicate handling and regression tests. Preview success is not import persistence.
 
 ### What you can inspect
 
@@ -71,11 +82,11 @@ This is a foundation slice, not the completed AegisRisk product. ML, persisted C
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity verified; broader scenarios pending |
 | M5 API | Partial | Versioned foundation endpoints plus bounded CSV preview and validation tests; full scope pending |
-| M6 Full frontend | Partial | Portfolio dashboard, scenario controls and CSV preview panel; new panel interactive verification and full workbench pending |
+| M6 Full frontend | Partial | Portfolio dashboard, scenario controls and CSV preview panel; CSV flows verified in CI Chromium, full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Not started | |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
-| M10 Full verification | Partial | CI passed; full E2E, accessibility, Compose and security verification pending |
+| M10 Full verification | Partial | Backend/frontend/CSV Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
 | Career presentation and learning | Not started | Begin after credible verified application |
