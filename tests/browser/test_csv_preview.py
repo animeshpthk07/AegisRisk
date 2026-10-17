@@ -341,7 +341,9 @@ def test_switch_clears_pending_stress_and_ignores_old_result(page):
 
 def download_report(page):
     with page.expect_download() as pending:
-        page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
+        page.get_by_role(
+            "button", name="Download baseline report (JSON)", exact=True
+        ).click()
     download = pending.value
     return download, json.loads(Path(download.path()).read_text(encoding="utf-8"))
 
@@ -358,11 +360,14 @@ def test_download_report_matches_demo_and_selected_snapshot(page):
     snapshot = save_snapshot(body, "Fictional report test")
     page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
     selector = page.get_by_label("Active portfolio", exact=True)
-    expect(selector.locator("option").filter(has_text="Fictional report test")).to_have_count(1)
+    expect(
+        selector.locator("option").filter(has_text="Fictional report test")
+    ).to_have_count(1)
     selector.select_option(snapshot["id"])
     expect(metrics).to_contain_text("1 fictional facilities")
     download, report = download_report(page)
-    assert download.suggested_filename == "aegisrisk-baseline-" + snapshot["id"] + ".json"
+    expected_name = "aegisrisk-baseline-" + snapshot["id"] + ".json"
+    assert download.suggested_filename == expected_name
     assert report["dataset_id"] == snapshot["id"]
     assert report["summary"]["total_expected_loss"] == 50
     assert report["source"]["input_rows"][0]["ead"] == "1000"
@@ -384,7 +389,9 @@ def test_report_failure_downloads_nothing_and_retry_recovers(page, failure):
             content_type="application/json", body=json.dumps(invalid),
         ),
     )
-    page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
+    page.get_by_role(
+        "button", name="Download baseline report (JSON)", exact=True
+    ).click()
     panel = page.get_by_role("region", name="Baseline report", exact=True)
     expect(panel.get_by_role("alert")).to_be_visible()
     assert downloads == []
@@ -410,8 +417,12 @@ def test_switch_ignores_pending_report_download(page, switch_back):
     downloads = []
     page.on("download", lambda download: downloads.append(download))
     page.route("**/api/report", lambda route: pending.append(route))
-    page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
-    expect(page.get_by_role("button", name="Preparing report…", exact=True)).to_be_disabled()
+    page.get_by_role(
+        "button", name="Download baseline report (JSON)", exact=True
+    ).click()
+    expect(
+        page.get_by_role("button", name="Preparing report…", exact=True)
+    ).to_be_disabled()
     selector.select_option(snapshot["id"])
     expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
         "1 fictional facilities"
@@ -422,7 +433,9 @@ def test_switch_ignores_pending_report_download(page, switch_back):
             "40 fictional facilities"
         )
     assert len(pending) == 1
-    pending[0].fulfill(status=200, content_type="application/json", body=json.dumps(stale))
+    pending[0].fulfill(
+        status=200, content_type="application/json", body=json.dumps(stale)
+    )
     page.unroute("**/api/report")
     _, current = download_report(page)
     assert current["dataset_id"] == (None if switch_back else snapshot["id"])
@@ -433,7 +446,9 @@ def test_catalog_refresh_does_not_disguise_active_dataset(page):
     snapshot = save_snapshot(fictional_csv(), "Fictional outside page")
     page.reload()
     selector = page.get_by_label("Active portfolio", exact=True)
-    expect(selector.locator("option").filter(has_text="Fictional outside page")).to_have_count(1)
+    expect(
+        selector.locator("option").filter(has_text="Fictional outside page")
+    ).to_have_count(1)
     selector.select_option(snapshot["id"])
     metrics = page.get_by_role("region", name="Portfolio metrics")
     expect(metrics).to_contain_text("1 fictional facilities")
