@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [stressError, setStressError] = useState('');
   const [busy, setBusy] = useState(false);
   const [light, setLight] = useState(false);
+  const [reportBusy, setReportBusy] = useState(false);
+  const [reportError, setReportError] = useState('');
+  const [reportMessage, setReportMessage] = useState('');
+  const reportAbort = useRef<AbortController | null>(null);
   const [datasetId, setDatasetId] = useState('');
   const [savedPortfolios, setSavedPortfolios] = useState<SavedPortfolio[]>([]);
   const [savingEnabled, setSavingEnabled] = useState(false);
@@ -41,6 +45,8 @@ export default function Dashboard() {
     if (id === datasetId) return;
     loadVersion.current += 1;
     stressAbort.current?.abort(); stressAbort.current = null;
+    reportAbort.current?.abort(); reportAbort.current = null;
+    setReportBusy(false); setReportError(''); setReportMessage('');
     setDatasetId(id); setData(null); setNarrative(''); setError(''); setConnected(false);
     setResult(null); setStressError(''); setBusy(false); setQuery(''); setIndustry('');
   }
@@ -69,7 +75,7 @@ export default function Dashboard() {
   }
   useEffect(() => {
     void loadCatalog();
-    return () => { catalogAbort.current?.abort(); stressAbort.current?.abort(); };
+    return () => { catalogAbort.current?.abort(); stressAbort.current?.abort(); reportAbort.current?.abort(); };
   }, []);
   useEffect(() => {
     const controller = new AbortController(); const version = ++loadVersion.current;
@@ -99,6 +105,35 @@ export default function Dashboard() {
       if (version === loadVersion.current && stressAbort.current === controller) { setBusy(false); stressAbort.current = null; }
     }
   }
+  async function downloadReport() {
+    if (!data || reportAbort.current || (data.dataset_id || '') !== datasetId) return;
+    const version = loadVersion.current;
+    const selectedId = datasetId;
+    const controller = new AbortController(); reportAbort.current = controller;
+    setReportBusy(true); setReportError(''); setReportMessage('');
+    try {
+      const report = await read('report' + suffix, controller.signal);
+      if (controller.signal.aborted || version !== loadVersion.current || reportAbort.current !== controller) return;
+      if (!report || report.schema_version !== 'aegisrisk.baseline-report.v1' ||
+          report.dataset_id !== (selectedId || null) || report.dataset_version !== data.dataset_version ||
+          report.synthetic !== true || report.scenario_included !== false ||
+          report.report_kind !== 'baseline_only' || !Array.isArray(report.source?.input_rows)) {
+        throw new Error('Report identity could not be verified. Nothing was downloaded.');
+      }
+      const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2) + '\n'], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url; link.download = 'aegisrisk-baseline-' + (selectedId || 'demo') + '.json';
+      document.body.appendChild(link); link.click(); link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setReportMessage('Baseline report prepared for download. It does not include a stress scenario.');
+    } catch (err) {
+      if (!controller.signal.aborted && version === loadVersion.current && reportAbort.current === controller) {
+        setReportError(err instanceof Error ? err.message : 'Report unavailable. Please retry.');
+      }
+    } finally {
+      if (version === loadVersion.current && reportAbort.current === controller) { setReportBusy(false); reportAbort.current = null; }
+    }
+  }
   const rows = data?.facilities.filter((r) => `${r.id} ${r.borrower} ${r.industry}`.toLowerCase().includes(query.toLowerCase())) || [];
   return <div className={light ? 'app light' : 'app'}>
     <a className="skip" href="#overview">Skip to dashboard</a>
@@ -109,7 +144,7 @@ export default function Dashboard() {
     <main><header><div className="breadcrumb">WORKSPACE <span>/</span> CREDIT RISK</div><button onClick={() => setLight(!light)} aria-label="Toggle light and dark theme">{light ? 'Dark theme' : 'Light theme'}</button></header>
       <div className="title-row" id="overview"><div><p className="eyebrow">PORTFOLIO MONITOR · ONE-YEAR HORIZON</p><h1>Clarity behind every exposure.</h1><p className="subtitle">Credit risk, concentration and scenario sensitivity in one transparent view.</p></div><span className="badge">SYNTHETIC DEMO</span></div>
       <div className="status"><span className={connected ? 'dot' : 'dot pending'}/>{connected ? 'API + database connected' : error ? 'Connection unavailable' : 'Connecting to backend…'}<span>INR · {data?.dataset_version || 'Awaiting dataset'} · No external AI</span></div>
-      <section className="panel" aria-label="Dataset selection"><label htmlFor="active-portfolio">Active portfolio</label><select id="active-portfolio" value={datasetId} onChange={event => chooseDataset(event.target.value)}><option value="">Built-in fictional demo (40 facilities)</option>{savedPortfolios.map(item => <option key={item.id} value={item.id}>{item.name} · {item.row_count} facilities</option>)}</select><p className="muted">Saved snapshots stay separate from the demo. Switching portfolios clears the previous scenario and calculation note.</p><div className="preview-actions"><button onClick={() => void loadCatalog()} disabled={catalogBusy}>Refresh saved portfolios</button>{nextOffset < catalogTotal && <button onClick={() => void loadCatalog(nextOffset)} disabled={catalogBusy}>Load more portfolios</button>}{catalogBusy && <span role="status">Loading saved portfolios…</span>}</div>{catalogError && <p role="alert">{catalogError}</p>}</section>
+      <section className="panel" aria-label="Dataset selection"><label htmlFor="active-portfolio">Active portfolio</label><select id="active-portfolio" value={datasetId} onChange={event => chooseDataset(event.target.value)}><option value="">Built-in fictional demo (40 facilities)</option>{datasetId && !savedPortfolios.some(item => item.id === datasetId) && <option value={datasetId}>Selected saved portfolio · {datasetId.slice(0, 8)} (outside current list)</option>}{savedPortfolios.map(item => <option key={item.id} value={item.id}>{item.name} · {item.row_count} facilities</option>)}</select><p className="muted">Saved snapshots stay separate from the demo. Switching portfolios clears the previous scenario and calculation note.</p><div className="preview-actions"><button onClick={() => void loadCatalog()} disabled={catalogBusy}>Refresh saved portfolios</button>{nextOffset < catalogTotal && <button onClick={() => void loadCatalog(nextOffset)} disabled={catalogBusy}>Load more portfolios</button>}{catalogBusy && <span role="status">Loading saved portfolios…</span>}</div>{catalogError && <p role="alert">{catalogError}</p>}</section>
       {error && <div role="alert" className="warning">{error} <button onClick={() => window.location.reload()}>Retry</button></div>}
       {!data && !error && <p role="status" className="panel">Loading calculated portfolio metrics…</p>}
       {data && <><section className="kpis" aria-label="Portfolio metrics">
@@ -122,7 +157,8 @@ export default function Dashboard() {
       <section className="insight"><span className="eyebrow">CALCULATION NOTE · DETERMINISTIC</span><p>{narrative}</p><small>No credit recommendation. Figures are derived from the displayed dataset.</small></section>
       <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div><div className="table-scroll"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted">Showing {rows.length} of {data.facilities.length} facilities. Demo inputs—not predictions.</p></section>
       <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}><div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>setPd(e.target.value)}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>setLgd(e.target.value)}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>setEad(e.target.value)}/></label><label>Scope<select value={industry} onChange={e=>setIndustry(e.target.value)}><option value="">Whole portfolio</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p></div>}</section>
-      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV previews never save data. On explicitly enabled single-user instances, reviewed files can be saved as separate, immutable portfolios. ML training, XLSX, report exports, authentication and public deployment remain future milestones. No real banking data is used.</p></section></>}
+      <section className="panel" aria-label="Baseline report"><p className="eyebrow">PORTABLE EVIDENCE</p><h2>Take the calculations with you.</h2><p className="muted">Download the active portfolio’s baseline summary, facility inputs, decimal calculation evidence, methodology and source fingerprint as JSON. This does not include your stress scenario and is not an audit or regulatory report.</p><button onClick={() => void downloadReport()} disabled={reportBusy}>{reportBusy ? 'Preparing report…' : 'Download baseline report (JSON)'}</button>{reportError && <p role="alert">{reportError}</p>}{reportMessage && <p role="status">{reportMessage}</p>}</section>
+      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV previews never save data. On explicitly enabled single-user instances, reviewed files can be saved as separate, immutable portfolios. Baseline JSON evidence export is available. ML training, XLSX, formatted reports, authentication and public deployment remain future milestones. No real banking data is used.</p></section></>}
       <CsvPreview enabled={savingEnabled} onSaved={rememberSaved} onOpen={chooseDataset}/>
       <footer>MATHEMATICS CALCULATES. MODELS ESTIMATE. AI EXPLAINS. HUMANS DECIDE.<span>AegisRisk · Educational portfolio project · Not affiliated with any bank</span></footer>
     </main>

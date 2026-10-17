@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation', 'saved-portfolios']);
+const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation', 'saved-portfolios', 'report']);
 const writes = new Set(['stress', 'import-preview', 'saved-portfolios']);
 const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 function error(detail: string, status: number) {

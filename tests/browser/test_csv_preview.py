@@ -337,3 +337,120 @@ def test_switch_clears_pending_stress_and_ignores_old_result(page):
     page.get_by_role("button", name="Calculate scenario →", exact=True).click()
     expect(page.locator(".scenario-result")).to_contain_text("₹83")
     expect(page.locator(".scenario-result")).not_to_contain_text("9,99,999")
+
+
+def download_report(page):
+    with page.expect_download() as pending:
+        page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
+    download = pending.value
+    return download, json.loads(Path(download.path()).read_text(encoding="utf-8"))
+
+
+def test_download_report_matches_demo_and_selected_snapshot(page):
+    metrics = page.get_by_role("region", name="Portfolio metrics")
+    expect(metrics).to_contain_text("40 fictional facilities")
+    download, report = download_report(page)
+    assert download.suggested_filename == "aegisrisk-baseline-demo.json"
+    assert report["dataset_id"] is None
+    assert report["summary"]["facility_count"] == 40
+    assert report["scenario_included"] is False
+    body = fictional_csv()
+    snapshot = save_snapshot(body, "Fictional report test")
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text="Fictional report test")).to_have_count(1)
+    selector.select_option(snapshot["id"])
+    expect(metrics).to_contain_text("1 fictional facilities")
+    download, report = download_report(page)
+    assert download.suggested_filename == "aegisrisk-baseline-" + snapshot["id"] + ".json"
+    assert report["dataset_id"] == snapshot["id"]
+    assert report["summary"]["total_expected_loss"] == 50
+    assert report["source"]["input_rows"][0]["ead"] == "1000"
+    assert report["report_kind"] == "baseline_only"
+    assert report["explanation"]["mode"] == "deterministic"
+
+
+@pytest.mark.parametrize("failure", ["outage", "identity-mismatch"])
+def test_report_failure_downloads_nothing_and_retry_recovers(page, failure):
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    valid = httpx.get(f"{BASE_URL}/api/report", timeout=10).json()
+    invalid = dict(valid, dataset_id=str(uuid4()))
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))
+    page.route(
+        "**/api/report",
+        lambda route: route.fulfill(
+            status=503 if failure == "outage" else 200,
+            content_type="application/json", body=json.dumps(invalid),
+        ),
+    )
+    page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
+    panel = page.get_by_role("region", name="Baseline report", exact=True)
+    expect(panel.get_by_role("alert")).to_be_visible()
+    assert downloads == []
+    page.unroute("**/api/report")
+    _, report = download_report(page)
+    assert report["dataset_id"] is None
+    expect(panel.get_by_role("alert")).to_have_count(0)
+    assert len(downloads) == 1
+
+
+@pytest.mark.parametrize("switch_back", [False, True], ids=["a-to-b", "a-to-b-to-a"])
+def test_switch_ignores_pending_report_download(page, switch_back):
+    name = "Fictional stale report " + uuid4().hex[:8]
+    snapshot = save_snapshot(fictional_csv(), name)
+    stale = httpx.get(f"{BASE_URL}/api/report", timeout=10).json()
+    page.reload()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
+    pending = []
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))
+    page.route("**/api/report", lambda route: pending.append(route))
+    page.get_by_role("button", name="Download baseline report (JSON)", exact=True).click()
+    expect(page.get_by_role("button", name="Preparing report…", exact=True)).to_be_disabled()
+    selector.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "1 fictional facilities"
+    )
+    if switch_back:
+        selector.select_option("")
+        expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+            "40 fictional facilities"
+        )
+    assert len(pending) == 1
+    pending[0].fulfill(status=200, content_type="application/json", body=json.dumps(stale))
+    page.unroute("**/api/report")
+    _, current = download_report(page)
+    assert current["dataset_id"] == (None if switch_back else snapshot["id"])
+    assert len(downloads) == 1
+
+
+def test_catalog_refresh_does_not_disguise_active_dataset(page):
+    snapshot = save_snapshot(fictional_csv(), "Fictional outside page")
+    page.reload()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text="Fictional outside page")).to_have_count(1)
+    selector.select_option(snapshot["id"])
+    metrics = page.get_by_role("region", name="Portfolio metrics")
+    expect(metrics).to_contain_text("1 fictional facilities")
+    # Simulate a catalog page which does not contain the active immutable snapshot.
+    page.route(
+        "**/api/saved-portfolios?*",
+        lambda route: route.fulfill(
+            status=200, content_type="application/json",
+            body=json.dumps({"enabled": True, "items": [], "total": 0,
+                             "offset": 0, "limit": 100}),
+        ),
+    )
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    expect(selector).to_have_value(snapshot["id"])
+    expect(selector.locator("option:checked")).to_contain_text("outside current list")
+    expect(metrics).to_contain_text("1 fictional facilities")
+    _, report = download_report(page)
+    assert report["dataset_id"] == snapshot["id"]
+    selector.select_option("")
+    expect(metrics).to_contain_text("40 fictional facilities")

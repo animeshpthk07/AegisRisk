@@ -1,16 +1,19 @@
 import csv
 import io
+import json
+from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
 from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
+import aegisrisk.main as api_module
 from aegisrisk.database import Base, get_session
 from aegisrisk.main import app
 from aegisrisk.models import Facility, SavedPortfolio
@@ -312,7 +315,7 @@ def test_saved_list_pagination_and_unknown_ids(saved_client):
     save_csv(saved_client)
     assert saved_client.get("/api/v1/saved-portfolios?offset=1").json()["items"] == []
     assert saved_client.get("/api/v1/saved-portfolios?limit=101").status_code == 422
-    for resource in ("portfolio", "facilities", "explanation"):
+    for resource in ("portfolio", "facilities", "explanation", "report"):
         assert saved_client.get(f"/api/v1/{resource}?dataset_id={uuid4()}").status_code == 404
         assert saved_client.get(f"/api/v1/{resource}?dataset_id=invalid").status_code == 422
     assert saved_client.post(f"/api/v1/stress?dataset_id={uuid4()}", json={}).status_code == 404
@@ -356,3 +359,110 @@ def test_corrupt_snapshot_fails_closed(saved_client):
     response = saved_client.get("/api/v1/portfolio", params={"dataset_id": saved["id"]})
     assert response.status_code == 503
     assert response.json() == {"detail": "Saved portfolio integrity check failed"}
+
+
+def test_report_matches_dashboard_and_is_read_only(client, monkeypatch):
+    before = client.get("/api/v1/portfolio").json()
+    calls = []
+    original = api_module.load_rows
+
+    def tracked_load(session, dataset_id):
+        calls.append(dataset_id)
+        return original(session, dataset_id)
+
+    monkeypatch.setattr(api_module, "load_rows", tracked_load)
+    response = client.get("/api/v1/report")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert calls == [None]
+    report = response.json()
+    assert report["schema_version"] == "aegisrisk.baseline-report.v1"
+    assert report["dataset_id"] is None
+    assert report["dataset_version"] == "demo-v1"
+    assert report["report_kind"] == "baseline_only"
+    assert report["scenario_included"] is False
+    assert report["synthetic"] is True
+    assert report["currency"] == "INR"
+    assert report["horizon"] == "one_year"
+    assert datetime.fromisoformat(report["generated_at"]).utcoffset().total_seconds() == 0
+    for key in ("summary", "facilities", "segments", "warnings"):
+        assert report[key] == before[key]
+    inputs = report["source"]["input_rows"]
+    assert inputs[0]["pd"] == "0.1"
+    assert inputs[0]["lgd"] == "0.5"
+    assert inputs[0]["ead"] == "1000"
+    canonical = json.dumps(inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    assert report["source"]["canonical_sha256"] == sha256(canonical.encode()).hexdigest()
+    assert Decimal(report["calculation"]["total_expected_loss_decimal"]) == 50
+    assert report["calculation"]["decimal_precision"] == 28
+    assert "not an LLM" in report["explanation"]["disclaimer"]
+    repeated = client.get("/api/v1/report").json()
+    del repeated["generated_at"]
+    del report["generated_at"]
+    assert repeated == report
+    assert client.get("/api/v1/portfolio").json() == before
+
+
+def test_saved_report_canonical_evidence_and_precision(saved_client):
+    row = CSV_ROW.copy()
+    row[5:8] = ["0.1234567890", "0.9876543210", "3210.99"]
+    other = CSV_ROW.copy()
+    other[0] = "SYN-CSV-002"
+    first = save_csv(saved_client, csv_body([row, other])).json()["portfolio"]
+    row[5] = "0.123456789"
+    other[7] = "1000.0"
+    second = save_csv(saved_client, csv_body([other, row])).json()["portfolio"]
+    assert first["id"] != second["id"]
+    reports = [saved_client.get("/api/v1/report", params={"dataset_id": item["id"]}).json()
+               for item in (first, second)]
+    assert reports[0]["source"] == reports[1]["source"]
+    for report, item in zip(reports, (first, second), strict=True):
+        assert report["dataset_id"] == item["id"]
+        assert report["dataset_version"] == "saved-v1:" + item["id"]
+        expected = Decimal("0.123456789") * Decimal("0.987654321") * Decimal("3210.99")
+        calculation = report["calculation"]
+        assert Decimal(calculation["facility_expected_loss_decimal"][0]["expected_loss"]) == expected
+        assert Decimal(calculation["total_expected_loss_decimal"]) == expected + 50
+        assert "csv_text" not in report["source"]
+        selected = saved_client.get("/api/v1/portfolio", params={"dataset_id": item["id"]})
+        assert report["summary"] == selected.json()["summary"]
+
+
+def test_report_respects_disabled_and_corrupt_snapshot_guards(saved_client, monkeypatch):
+    saved = save_csv(saved_client).json()["portfolio"]
+    params = {"dataset_id": saved["id"]}
+    with monkeypatch.context() as patch:
+        patch.setenv("SYNTHETIC_IMPORTS_ENABLED", "false")
+        assert saved_client.get("/api/v1/report", params=params).status_code == 403
+        assert saved_client.get("/api/v1/report").status_code == 200
+    sessions = app.dependency_overrides[get_session]()
+    session = next(sessions)
+    try:
+        session.get(SavedPortfolio, saved["id"]).digest = "0" * 64
+        session.commit()
+    finally:
+        sessions.close()
+    response = saved_client.get("/api/v1/report", params=params)
+    assert response.status_code == 503
+    assert "schema_version" not in response.json()
+
+
+def test_report_handles_empty_and_zero_exposure(client):
+    sessions = app.dependency_overrides[get_session]()
+    session = next(sessions)
+    try:
+        session.get(Facility, "A").ead = Decimal(0)
+        session.commit()
+        zero = client.get("/api/v1/report").json()
+        assert zero["summary"]["weighted_pd"] is None
+        assert Decimal(zero["calculation"]["total_expected_loss_decimal"]) == 0
+        session.execute(delete(Facility))
+        session.commit()
+        empty = client.get("/api/v1/report").json()
+        assert empty["source"]["input_rows"] == []
+        assert empty["summary"]["facility_count"] == 0
+        assert empty["summary"]["borrower_hhi"] is None
+        assert "No facilities loaded." in empty["warnings"]
+    finally:
+        sessions.close()

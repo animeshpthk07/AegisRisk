@@ -15,6 +15,7 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
 - Bounded synthetic CSV preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
 - Opt-in reviewed CSV snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
+- Downloadable baseline JSON reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
 
 **Not yet the complete product:** no trained ML model, XLSX imports, PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
 
@@ -42,7 +43,7 @@ That historical run verifies the CSV-preview slice only, not the later snapshot 
 
 ## Reviewed saved portfolios
 
-The snapshot workflow is implemented in commit `09e0156`; its [verification run #11](https://github.com/animeshpthk07/AegisRisk/actions/runs/38981748695) must be checked for the latest result.
+[Verification run #12](https://github.com/animeshpthk07/AegisRisk/actions/runs/38982082684) passed on 17 October 2026 (Asia/Kolkata) for commit `73cc16b`: backend, frontend and full-stack Chromium checks succeeded, including reviewed saving, duplicate reuse, reload, selection and stale stress-response protection. Historical failures remain in the Actions history.
 
 On a local, single-user instance, explicitly set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process after applying migrations. Keep it disabled on shared or public instances: this feature has no authentication, tenant isolation, retention policy or total storage quota.
 
@@ -52,3 +53,10 @@ On a local, single-user instance, explicitly set `SYNTHETIC_IMPORTS_ENABLED=true
 4. Use **Active portfolio** to return to the built-in demo or another saved file. Reload returns the selection to the demo, but saved files remain available in the catalog.
 
 Previewing does not save. Saving does not switch datasets or overwrite the demo. Exact duplicate file bytes reuse the original snapshot and name. The server revalidates every save and checks the preview digest; errors never silently fall back to the demo. Only synthetic data is supported.
+
+
+## Baseline evidence download
+
+Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; formatted PDF reports remain future work.
+
+This report is not an audit opinion, regulatory calculation or credit recommendation. Its fingerprint identifies canonical input content, not authenticity. Dataset switches cancel pending exports. See the [report contract](docs/CONTRACT.md#baseline-evidence-report-json) for schema, rounding and error behavior, and the milestone tracker for verification evidence.

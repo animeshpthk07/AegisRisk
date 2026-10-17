@@ -1,6 +1,9 @@
+import json
 import logging
 from collections import defaultdict
-from decimal import Decimal
+from datetime import UTC, datetime
+from decimal import Decimal, getcontext
+from hashlib import sha256
 from typing import Annotated
 from uuid import UUID
 
@@ -62,14 +65,13 @@ def serialize(row):
     }
 
 
-@app.get("/api/v1/portfolio")
-def portfolio(session: SessionDep, dataset_id: UUID | None = None):
-    rows = load_rows(session, dataset_id)
+def portfolio_payload(rows, dataset_id):
     summary = summarize(rows)
-    groups = defaultdict(lambda: {"ead": 0.0, "expected_loss": 0.0})
+    total_ead = sum((row.ead for row in rows), Decimal(0))
+    groups = defaultdict(lambda: {"ead": Decimal(0), "expected_loss": Decimal(0)})
     for row in rows:
-        groups[row.industry]["ead"] += float(row.ead)
-        groups[row.industry]["expected_loss"] += float(expected_loss(row.pd, row.lgd, row.ead))
+        groups[row.industry]["ead"] += row.ead
+        groups[row.industry]["expected_loss"] += expected_loss(row.pd, row.lgd, row.ead)
     return {
         "dataset_version": f"saved-v1:{dataset_id}" if dataset_id else "demo-v1",
         "dataset_id": str(dataset_id) if dataset_id else None,
@@ -81,8 +83,9 @@ def portfolio(session: SessionDep, dataset_id: UUID | None = None):
         "segments": [
             {
                 "industry": key,
-                **value,
-                "share": value["ead"] / summary["total_ead"] if summary["total_ead"] else 0,
+                "ead": float(value["ead"]),
+                "expected_loss": float(value["expected_loss"]),
+                "share": float(value["ead"] / total_ead) if total_ead else 0,
             }
             for key, value in sorted(groups.items())
         ],
@@ -92,6 +95,11 @@ def portfolio(session: SessionDep, dataset_id: UUID | None = None):
         ]
         + (["No facilities loaded."] if not rows else []),
     }
+
+
+@app.get("/api/v1/portfolio")
+def portfolio(session: SessionDep, dataset_id: UUID | None = None):
+    return portfolio_payload(load_rows(session, dataset_id), dataset_id)
 
 
 @app.get("/api/v1/facilities")
@@ -153,11 +161,65 @@ def stress(config: StressInput, session: SessionDep, dataset_id: UUID | None = N
     }
 
 
-@app.get("/api/v1/explanation")
-def explanation(session: SessionDep, dataset_id: UUID | None = None):
-    stats = summarize(load_rows(session, dataset_id))
+def explanation_payload(stats):
     return {
         "mode": "deterministic",
         "text": f"This fictional portfolio contains {stats['facility_count']} facilities with INR {stats['total_ead']:,.2f} exposure at default. Summing PD × LGD × EAD for each facility gives one-year expected loss of INR {stats['total_expected_loss']:,.2f}.",
         "disclaimer": "Rule-based explanation, not an LLM output, credit recommendation, IFRS 9 calculation, or regulatory capital estimate.",
+    }
+
+
+@app.get("/api/v1/explanation")
+def explanation(session: SessionDep, dataset_id: UUID | None = None):
+    return explanation_payload(summarize(load_rows(session, dataset_id)))
+
+
+@app.get("/api/v1/report")
+def report(session: SessionDep, dataset_id: UUID | None = None):
+    """Read-only baseline evidence; never includes a browser stress scenario."""
+    rows = sorted(load_rows(session, dataset_id), key=lambda row: row.id)
+    baseline = portfolio_payload(rows, dataset_id)
+    inputs = [
+        {key: getattr(row, key) for key in
+         ("id", "borrower", "industry", "geography", "rating")}
+        | {key: format(getattr(row, key).normalize(), "f") for key in ("pd", "lgd", "ead")}
+        for row in rows
+    ]
+    canonical = json.dumps(inputs, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return {
+        "schema_version": "aegisrisk.baseline-report.v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "report_kind": "baseline_only",
+        "scenario_included": False,
+        **baseline,
+        "explanation": explanation_payload(baseline["summary"]),
+        "source": {
+            "canonical_sha256": sha256(canonical.encode("utf-8")).hexdigest(),
+            "canonicalization": (
+                "Input rows sorted by case-sensitive id; normalized plain decimal strings; "
+                "JSON sorted keys, compact separators, ensure_ascii=true, UTF-8. "
+                "This is not the original CSV digest or a digital signature."
+            ),
+            "input_rows": inputs,
+        },
+        "calculation": {
+            "formula": "EL = sum(PD * LGD * EAD)",
+            "probability_unit": "fraction_0_to_1",
+            "decimal_precision": getcontext().prec,
+            "decimal_rounding": getcontext().rounding,
+            "total_ead_decimal": format(sum((r.ead for r in rows), Decimal(0)), "f"),
+            "total_expected_loss_decimal": format(
+                sum((expected_loss(r.pd, r.lgd, r.ead) for r in rows), Decimal(0)), "f"
+            ),
+            "facility_expected_loss_decimal": [
+                {"id": r.id, "expected_loss": format(expected_loss(r.pd, r.lgd, r.ead), "f")}
+                for r in rows
+            ],
+            "notes": [
+                "Summary numbers are JSON display values; decimal evidence is provided separately.",
+                "Weighted PD/LGD use EAD. Borrower HHI sums squared borrower exposure shares.",
+                "No stress scenario, trained model, investment advice or lending decision is included.",
+                "Not IFRS 9 ECL, regulatory capital, an audit opinion or production validation.",
+            ],
+        },
     }

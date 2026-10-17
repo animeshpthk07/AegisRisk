@@ -44,3 +44,18 @@ The API process must explicitly opt in with `SYNTHETIC_IMPORTS_ENABLED=true`. Th
 - GET portfolio, facilities and explanation, plus POST stress, accept `dataset_id=<UUID>`. Omit it to use the seeded demo. A malformed UUID is 422, an unknown ID 404, disabled saved access 403, and a corrupt snapshot 503. None silently fall back to the demo. A selected portfolio reports its ID and `saved-v1:<UUID>` version; the demo reports a null ID.
 
 The browser proxies only fixed resource paths. Preview/save requests are byte-bounded and require the acknowledgement headers; the backend remains authoritative. Saving leaves the current selection unchanged. Opening a saved portfolio is explicit. Dataset switches clear the previous note/scenario and invalidate in-flight responses; reload returns to the demo while preserving saved records. The UI prints rounded currency for presentation; backend Decimal calculations remain the source of truth.
+
+
+## Baseline evidence report (JSON)
+
+GET `/api/v1/report` accepts the same optional `dataset_id=<UUID>` and loader guards as portfolio. The UI uses `/api/report`. It reads the selected dataset once and does not write to storage, call an AI provider, or include the current browser stress scenario.
+
+Schema `aegisrisk.baseline-report.v1` includes UTC `generated_at`, `report_kind: baseline_only`, `scenario_included: false`, all portfolio fields, the deterministic explanation and disclaimers, plus:
+
+- `source.input_rows`: identity/categorical fields and PD, LGD, EAD as normalized plain decimal strings. Rows are sorted by case-sensitive unique ID.
+- `source.canonical_sha256`: SHA-256 of those input rows serialized with sorted JSON keys, compact separators, ASCII escapes and UTF-8 encoding. Equivalent numeric spellings and row order yield the same fingerprint. This is NOT the original CSV-byte digest, a signature, or independent proof of authenticity.
+- `calculation`: formula, probability units, Decimal precision/rounding, decimal-computed total EAD/EL and facility EL strings, and explicit limitations. Calculations reuse the application's Decimal arithmetic (normally 28 significant digits, ROUND_HALF_EVEN); multiply PD then LGD then EAD. Arithmetic may round to that precision. JSON summary numbers are display values, not lossless decimal encodings.
+
+For unchanged inputs, only generation time should vary. The report is a baseline educational snapshot, not IFRS 9 ECL, capital estimation, an audit opinion, or a lending decision. Currency remains INR and horizon one year. Empty/zero-EAD datasets retain null ratios. Responses use no-store/nosniff headers. The filename uses only a fixed prefix and the dataset UUID or demo token.
+
+The browser validates report schema/dataset identity before offering a download. A dataset switch aborts and invalidates pending exports, including A → B → A changes; failures never reuse a previously downloaded report. Catalog refresh preserves the active ID even when it is outside the visible catalog page. Formatted PDF/CSV reports and scenario exports are not implemented by this endpoint.
