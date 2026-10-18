@@ -469,3 +469,187 @@ def test_catalog_refresh_does_not_disguise_active_dataset(page):
     assert report["dataset_id"] == snapshot["id"]
     selector.select_option("")
     expect(metrics).to_contain_text("40 fictional facilities")
+
+
+def calculate_scenario(page):
+    with page.expect_response(
+        lambda response: response.url.split("?")[0] == f"{BASE_URL}/api/stress"
+        and response.request.method == "POST"
+    ) as pending:
+        page.get_by_role("button", name="Calculate scenario →", exact=True).click()
+    assert pending.value.status == 200
+    expect(page.locator(".scenario-result")).to_be_visible()
+    return pending.value.json()
+
+
+def download_scenario_report(page):
+    with page.expect_download() as pending:
+        page.get_by_role(
+            "button", name="Download scenario report (JSON)", exact=True
+        ).click()
+    download = pending.value
+    return download, json.loads(Path(download.path()).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_scenario_download_matches_calculated_demo_and_snapshot(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    live = calculate_scenario(page)
+    download, report = download_scenario_report(page)
+    assert download.suggested_filename == "aegisrisk-scenario-demo.json"
+    assert report["dataset_id"] is None
+    assert {key: report["scenario"][key] for key in live} == live
+    assert report["scenario_included"] is True
+    assert report["baseline"]["scenario_included"] is False
+    name = "Fictional scenario " + uuid4().hex[:8]
+    snapshot = save_snapshot(fictional_csv(), name)
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+    selector.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "1 fictional facilities"
+    )
+    page.get_by_label("PD multiplier", exact=True).fill("2")
+    page.get_by_label("LGD multiplier", exact=True).fill("1")
+    live = calculate_scenario(page)
+    expect(page.locator(".scenario-result")).to_contain_text("₹100")
+    download, report = download_scenario_report(page)
+    assert download.suggested_filename == (
+        "aegisrisk-scenario-" + snapshot["id"] + ".json"
+    )
+    assert report["dataset_id"] == snapshot["id"]
+    assert report["scenario"]["stressed_el"] == 100
+    assert report["scenario"]["inputs"]["pd_multiplier"] == 2
+    assert report["baseline"]["summary"]["total_expected_loss"] == 50
+    assert {key: report["scenario"][key] for key in live} == live
+
+
+@pytest.mark.parametrize("failure", ["outage", "identity", "inputs", "result"])
+def test_scenario_report_failure_and_retry(page, failure):
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    calculate_scenario(page)
+    invalid = httpx.post(
+        f"{BASE_URL}/api/scenario-report", json={}, timeout=10
+    ).json()
+    if failure == "identity":
+        invalid["dataset_id"] = str(uuid4())
+    elif failure == "inputs":
+        invalid["scenario"]["inputs"]["pd_multiplier"] = 3
+    elif failure == "result":
+        invalid["scenario"]["stressed_el"] = -1
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))
+    page.route(
+        "**/api/scenario-report",
+        lambda route: route.fulfill(
+            status=503 if failure == "outage" else 200,
+            content_type="application/json", body=json.dumps(invalid),
+        ),
+    )
+    page.get_by_role(
+        "button", name="Download scenario report (JSON)", exact=True
+    ).click()
+    expect(page.locator("#stress").get_by_role("alert")).to_be_visible()
+    assert downloads == []
+    page.unroute("**/api/scenario-report")
+    _, report = download_scenario_report(page)
+    assert report["dataset_id"] is None
+    assert len(downloads) == 1
+    expect(page.locator("#stress").get_by_role("alert")).to_have_count(0)
+
+
+@pytest.mark.parametrize("phase", ["calculation", "export"])
+@pytest.mark.parametrize("field", ["PD multiplier", "LGD multiplier",
+                                    "EAD multiplier", "Scope"])
+def test_assumption_edit_invalidates_pending_scenario_work(page, phase, field):
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    resource = "stress" if phase == "calculation" else "scenario-report"
+    stale = httpx.post(f"{BASE_URL}/api/{resource}", json={}, timeout=10).json()
+    if phase == "export":
+        calculate_scenario(page)
+    pending = []
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))
+    pattern = f"**/api/{resource}"
+    page.route(pattern, lambda route: pending.append(route))
+    name = "Calculate scenario →" if phase == "calculation" else (
+        "Download scenario report (JSON)"
+    )
+    page.get_by_role("button", name=name, exact=True).click()
+    busy = "Calculating…" if phase == "calculation" else "Preparing scenario report…"
+    expect(page.get_by_role("button", name=busy, exact=True)).to_be_disabled()
+    control = page.get_by_label(field, exact=True)
+    if field == "Scope":
+        control.select_option(index=1)
+    else:
+        control.fill("2")
+    expect(page.locator(".scenario-result")).to_have_count(0)
+    expect(page.get_by_role("button", name="Calculate scenario →")).to_be_enabled()
+    assert len(pending) == 1
+    pending[0].fulfill(
+        status=200, content_type="application/json", body=json.dumps(stale)
+    )
+    page.unroute(pattern)
+    live = calculate_scenario(page)
+    _, report = download_scenario_report(page)
+    assert {key: report["scenario"][key] for key in live} == live
+    expected_inputs = {
+        "pd_multiplier": float(page.get_by_label("PD multiplier").input_value()),
+        "lgd_multiplier": float(page.get_by_label("LGD multiplier").input_value()),
+        "ead_multiplier": float(page.get_by_label("EAD multiplier").input_value()),
+        "industry": page.get_by_label("Scope", exact=True).input_value() or None,
+    }
+    assert report["scenario"]["inputs"] == expected_inputs
+    assert len(downloads) == 1
+
+
+@pytest.mark.parametrize("switch_back", [False, True], ids=["a-b", "a-b-a"])
+def test_portfolio_switch_cancels_scenario_download(page, switch_back):
+    name = "Fictional scenario race " + uuid4().hex[:8]
+    snapshot = save_snapshot(fictional_csv(), name)
+    page.reload()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
+    calculate_scenario(page)
+    stale = httpx.post(
+        f"{BASE_URL}/api/scenario-report", json={}, timeout=10
+    ).json()
+    pending = []
+    downloads = []
+    page.on("download", lambda download: downloads.append(download))
+    page.route("**/api/scenario-report", lambda route: pending.append(route))
+    page.get_by_role(
+        "button", name="Download scenario report (JSON)", exact=True
+    ).click()
+    expect(page.get_by_role(
+        "button", name="Preparing scenario report…", exact=True
+    )).to_be_disabled()
+    selector.select_option(snapshot["id"])
+    metrics = page.get_by_role("region", name="Portfolio metrics")
+    expect(metrics).to_contain_text("1 fictional facilities")
+    if switch_back:
+        selector.select_option("")
+        expect(metrics).to_contain_text("40 fictional facilities")
+    expect(page.locator(".scenario-result")).to_have_count(0)
+    assert len(pending) == 1
+    pending[0].fulfill(
+        status=200, content_type="application/json", body=json.dumps(stale)
+    )
+    page.unroute("**/api/scenario-report")
+    calculate_scenario(page)
+    _, report = download_scenario_report(page)
+    assert report["dataset_id"] == (None if switch_back else snapshot["id"])
+    assert len(downloads) == 1
+
+
+def test_scenario_proxy_rejects_get_and_oversized_body():
+    assert httpx.get(f"{BASE_URL}/api/scenario-report").status_code == 404
+    response = httpx.post(
+        f"{BASE_URL}/api/scenario-report", content=b"x" * 4097, timeout=10
+    )
+    assert response.status_code == 413

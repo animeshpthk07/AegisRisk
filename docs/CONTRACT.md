@@ -59,3 +59,21 @@ Schema `aegisrisk.baseline-report.v1` includes UTC `generated_at`, `report_kind:
 For unchanged inputs, only generation time should vary. The report is a baseline educational snapshot, not IFRS 9 ECL, capital estimation, an audit opinion, or a lending decision. Currency remains INR and horizon one year. Empty/zero-EAD datasets retain null ratios. Responses use no-store/nosniff headers. The filename uses only a fixed prefix and the dataset UUID or demo token.
 
 The browser validates report schema/dataset identity before offering a download. A dataset switch aborts and invalidates pending exports, including A → B → A changes; failures never reuse a previously downloaded report. Catalog refresh preserves the active ID even when it is outside the visible catalog page. Formatted PDF/CSV reports and scenario exports are not implemented by this endpoint.
+
+
+## Scenario comparison report (JSON)
+
+POST `/api/v1/scenario-report` (browser proxy: `/api/scenario-report`) accepts the same JSON inputs, finite 0–10 multiplier limits, scope validation and optional dataset UUID as POST stress. Defaults are PD ×1.5, LGD ×1.1 and EAD ×1 across the whole portfolio. Unknown fields and invalid scopes are rejected. The proxy caps this JSON request at 4 KiB and does not allow GET for this resource.
+
+Schema `aegisrisk.scenario-report.v1` has `report_kind: baseline_and_scenario`, `scenario_included: true`, UTC generation time, dataset ID/version, synthetic flag, currency and horizon. It contains:
+
+- `baseline`: the complete baseline report envelope above, clearly labeled baseline-only. Its dataset identity and timestamp match the outer report.
+- `scenario`: the same baseline/stressed EL, absolute delta, fractional delta percentage and limitations produced by POST stress. Both endpoints use one shared calculation helper.
+- `scenario.inputs`: the validated multipliers and selected industry (null means whole portfolio). These are user assumptions, not forecasts or trained estimates.
+- `scenario.calculation`: precision/rounding context, decimal-string baseline/stressed/delta totals, nullable fractional delta, affected-facility count and sorted per-facility evidence. Each facility records whether it was affected, PD/LGD cap flags, stressed PD/LGD/EAD, baseline/stressed EL and delta EL. Unselected rows remain unchanged; stressed PD/LGD never exceed 1.
+
+The selected portfolio is loaded once for both sections. No scenario is persisted and no external AI runs. Saved-dataset disabled/unknown/corrupt guards remain enforced. Zero baseline EL gives null percentage change, not infinity. Empty portfolios give empty evidence and zero absolute totals. Decimal arithmetic uses the stated context, so evidence is reproducible but not a claim of unlimited precision.
+
+The browser binds export to the last successful calculation and its submitted assumptions. Every assumption edit invalidates the displayed result and cancels calculation/export requests, even if a control later returns to its previous value. Portfolio switches do the same. Before downloading, the browser checks outer/nested dataset identity, report schema, echoed input values and all four result numbers against that calculation. Mismatches and failed requests produce no download and allow retry. The filename is `aegisrisk-scenario-<UUID or demo>.json`.
+
+This is an educational sensitivity comparison, not a macroeconomic forecast, IFRS 9 result, regulatory-capital estimate, audit opinion or lending recommendation. Formatted reports, scenario persistence and production deployment remain outside this feature.

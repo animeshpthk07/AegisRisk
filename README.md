@@ -16,6 +16,7 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - Bounded synthetic CSV preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
 - Opt-in reviewed CSV snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
 - Downloadable baseline JSON reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
+- Scenario-comparison JSON reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
 **Not yet the complete product:** no trained ML model, XLSX imports, PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
 
@@ -60,3 +61,12 @@ Previewing does not save. Saving does not switch datasets or overwrite the demo.
 Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; formatted PDF reports remain future work.
 
 This report is not an audit opinion, regulatory calculation or credit recommendation. Its fingerprint identifies canonical input content, not authenticity. Dataset switches cancel pending exports. See the [report contract](docs/CONTRACT.md#baseline-evidence-report-json) for schema, rounding and error behavior, and the milestone tracker for verification evidence.
+
+
+## Scenario comparison download
+
+In **Stress laboratory**, choose the PD/LGD/EAD multipliers and industry scope, then **Calculate scenario →**. The result prints the assumptions used. Choose **Download scenario report (JSON)** to export that comparison with its baseline source evidence.
+
+Editing any assumption or switching portfolios clears the previous result and cancels pending scenario calculations/downloads. Recalculate before exporting. The browser rejects reports whose dataset, assumptions or result totals do not match the calculation. Failed exports can be retried; they never substitute an older report.
+
+These are synthetic sensitivity assumptions, not economic forecasts or trained estimates. Scenarios are not persisted. PDF presentation and production deployment remain separate milestones. See the [scenario report contract](docs/CONTRACT.md#scenario-comparison-report-json) and the milestone tracker for verification status.

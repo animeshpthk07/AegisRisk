@@ -7,6 +7,14 @@ import CsvPreview, { type SavedPortfolio } from './csv-preview';
 type Facility = { id: string; borrower: string; industry: string; geography: string; rating: string; pd: number; lgd: number; ead: number; expected_loss: number };
 type Portfolio = { dataset_id: string | null; dataset_version: string; summary: { facility_count: number; total_ead: number; total_expected_loss: number; weighted_pd: number | null; weighted_lgd: number | null; borrower_hhi: number | null }; facilities: Facility[]; segments: { industry: string; ead: number; expected_loss: number; share: number }[]; warnings: string[] };
 type Stress = { baseline_el: number; stressed_el: number; delta_el: number; delta_pct: number | null; assumptions: string[] };
+type StressInputs = { pd_multiplier: number; lgd_multiplier: number; ead_multiplier: number; industry: string | null };
+function downloadJson(report: unknown, filename: string) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2) + '\n'], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 async function read(path: string, signal?: AbortSignal) {
   const response = await fetch(`/api/${path}`, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error('The data service is unavailable. Check the API, migration and demo seed.');
@@ -23,6 +31,12 @@ export default function Dashboard() {
   const [lgd, setLgd] = useState('1.1');
   const [ead, setEad] = useState('1');
   const [result, setResult] = useState<Stress | null>(null);
+  const [submittedInputs, setSubmittedInputs] = useState<StressInputs | null>(null);
+  const [scenarioBusy, setScenarioBusy] = useState(false);
+  const [scenarioError, setScenarioError] = useState('');
+  const [scenarioMessage, setScenarioMessage] = useState('');
+  const scenarioAbort = useRef<AbortController | null>(null);
+  const scenarioVersion = useRef(0);
   const [stressError, setStressError] = useState('');
   const [busy, setBusy] = useState(false);
   const [light, setLight] = useState(false);
@@ -41,10 +55,17 @@ export default function Dashboard() {
   const stressAbort = useRef<AbortController | null>(null);
   const catalogAbort = useRef<AbortController | null>(null);
   const suffix = datasetId ? '?dataset_id=' + encodeURIComponent(datasetId) : '';
+  function invalidateScenario() {
+    scenarioVersion.current += 1;
+    stressAbort.current?.abort(); stressAbort.current = null;
+    scenarioAbort.current?.abort(); scenarioAbort.current = null;
+    setResult(null); setSubmittedInputs(null); setStressError(''); setBusy(false);
+    setScenarioBusy(false); setScenarioError(''); setScenarioMessage('');
+  }
   function chooseDataset(id: string) {
     if (id === datasetId) return;
     loadVersion.current += 1;
-    stressAbort.current?.abort(); stressAbort.current = null;
+    invalidateScenario();
     reportAbort.current?.abort(); reportAbort.current = null;
     setReportBusy(false); setReportError(''); setReportMessage('');
     setDatasetId(id); setData(null); setNarrative(''); setError(''); setConnected(false);
@@ -75,7 +96,7 @@ export default function Dashboard() {
   }
   useEffect(() => {
     void loadCatalog();
-    return () => { catalogAbort.current?.abort(); stressAbort.current?.abort(); reportAbort.current?.abort(); };
+    return () => { catalogAbort.current?.abort(); stressAbort.current?.abort(); reportAbort.current?.abort(); scenarioAbort.current?.abort(); };
   }, []);
   useEffect(() => {
     const controller = new AbortController(); const version = ++loadVersion.current;
@@ -92,17 +113,24 @@ export default function Dashboard() {
   async function runStress(event: React.FormEvent) {
     event.preventDefault();
     if (!data || busy || (data.dataset_id || '') !== datasetId) return;
+    invalidateScenario();
+    const inputs: StressInputs = { pd_multiplier: Number(pd), lgd_multiplier: Number(lgd), ead_multiplier: Number(ead), industry: industry || null };
+    const scenarioToken = scenarioVersion.current;
     const version = loadVersion.current; const controller = new AbortController(); stressAbort.current = controller;
     setBusy(true); setStressError(''); setResult(null);
     try {
-      const response = await fetch('/api/stress' + suffix, { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pd_multiplier: Number(pd), lgd_multiplier: Number(lgd), ead_multiplier: Number(ead), industry: industry || null }) });
+      const response = await fetch('/api/stress' + suffix, { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) });
       if (!response.ok) throw new Error('Stress calculation failed. Use multipliers between 0 and 10.');
       const calculated = await response.json();
-      if (!controller.signal.aborted && version === loadVersion.current && stressAbort.current === controller) setResult(calculated);
+      if (!controller.signal.aborted && version === loadVersion.current && scenarioToken === scenarioVersion.current && stressAbort.current === controller) {
+        if (![calculated.baseline_el, calculated.stressed_el, calculated.delta_el].every(Number.isFinite) ||
+            (calculated.delta_pct !== null && !Number.isFinite(calculated.delta_pct)) || !Array.isArray(calculated.assumptions)) throw new Error('Invalid scenario result. Please retry.');
+        setResult(calculated); setSubmittedInputs(inputs);
+      }
     } catch (err) {
-      if (!controller.signal.aborted && version === loadVersion.current && stressAbort.current === controller) setStressError(err instanceof Error ? err.message : 'Calculation unavailable');
+      if (!controller.signal.aborted && version === loadVersion.current && scenarioToken === scenarioVersion.current && stressAbort.current === controller) setStressError(err instanceof Error ? err.message : 'Calculation unavailable');
     } finally {
-      if (version === loadVersion.current && stressAbort.current === controller) { setBusy(false); stressAbort.current = null; }
+      if (version === loadVersion.current && scenarioToken === scenarioVersion.current && stressAbort.current === controller) { setBusy(false); stressAbort.current = null; }
     }
   }
   async function downloadReport() {
@@ -120,11 +148,7 @@ export default function Dashboard() {
           report.report_kind !== 'baseline_only' || !Array.isArray(report.source?.input_rows)) {
         throw new Error('Report identity could not be verified. Nothing was downloaded.');
       }
-      const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2) + '\n'], { type: 'application/json' }));
-      const link = document.createElement('a');
-      link.href = url; link.download = 'aegisrisk-baseline-' + (selectedId || 'demo') + '.json';
-      document.body.appendChild(link); link.click(); link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadJson(report, 'aegisrisk-baseline-' + (selectedId || 'demo') + '.json');
       setReportMessage('Baseline report prepared for download. It does not include a stress scenario.');
     } catch (err) {
       if (!controller.signal.aborted && version === loadVersion.current && reportAbort.current === controller) {
@@ -132,6 +156,39 @@ export default function Dashboard() {
       }
     } finally {
       if (version === loadVersion.current && reportAbort.current === controller) { setReportBusy(false); reportAbort.current = null; }
+    }
+  }
+  async function downloadScenarioReport() {
+    if (!data || !result || !submittedInputs || busy || scenarioAbort.current || (data.dataset_id || '') !== datasetId) return;
+    const version = loadVersion.current; const scenarioToken = scenarioVersion.current;
+    const selectedId = datasetId; const inputs = { ...submittedInputs }; const expected = result;
+    const controller = new AbortController(); scenarioAbort.current = controller;
+    setScenarioBusy(true); setScenarioError(''); setScenarioMessage('');
+    try {
+      const response = await fetch('/api/scenario-report' + suffix, { method: 'POST', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(inputs) });
+      if (!response.ok) throw new Error('Scenario report unavailable. Please retry.');
+      const report = await response.json();
+      if (controller.signal.aborted || version !== loadVersion.current || scenarioToken !== scenarioVersion.current || scenarioAbort.current !== controller) return;
+      const echoed = report?.scenario?.inputs;
+      if (!report || report.schema_version !== 'aegisrisk.scenario-report.v1' ||
+          report.report_kind !== 'baseline_and_scenario' || report.scenario_included !== true ||
+          report.synthetic !== true || report.dataset_id !== (selectedId || null) || report.dataset_version !== data.dataset_version ||
+          report.baseline?.dataset_id !== report.dataset_id || report.baseline?.dataset_version !== report.dataset_version ||
+          !Array.isArray(report.baseline?.source?.input_rows) || !echoed ||
+          echoed.pd_multiplier !== inputs.pd_multiplier || echoed.lgd_multiplier !== inputs.lgd_multiplier ||
+          echoed.ead_multiplier !== inputs.ead_multiplier || echoed.industry !== inputs.industry ||
+          report.scenario.baseline_el !== expected.baseline_el || report.scenario.stressed_el !== expected.stressed_el ||
+          report.scenario.delta_el !== expected.delta_el || report.scenario.delta_pct !== expected.delta_pct) {
+        throw new Error('Scenario report does not match the calculated result. Nothing was downloaded.');
+      }
+      downloadJson(report, 'aegisrisk-scenario-' + (selectedId || 'demo') + '.json');
+      setScenarioMessage('Scenario report prepared for download with the calculated assumptions.');
+    } catch (err) {
+      if (!controller.signal.aborted && version === loadVersion.current && scenarioToken === scenarioVersion.current && scenarioAbort.current === controller) {
+        setScenarioError(err instanceof Error ? err.message : 'Scenario report unavailable.');
+      }
+    } finally {
+      if (version === loadVersion.current && scenarioToken === scenarioVersion.current && scenarioAbort.current === controller) { setScenarioBusy(false); scenarioAbort.current = null; }
     }
   }
   const rows = data?.facilities.filter((r) => `${r.id} ${r.borrower} ${r.industry}`.toLowerCase().includes(query.toLowerCase())) || [];
@@ -156,9 +213,9 @@ export default function Dashboard() {
       <section className="panel"><div className="section-head"><h2>Concentration lens</h2><span>EXPOSURE SHARE</span></div><table><caption className="sr-only">Industry exposures and shares</caption><thead><tr><th>Industry</th><th>Exposure</th><th>Share</th></tr></thead><tbody>{data.segments.map(s => <tr key={s.industry}><td>{s.industry}</td><td>{money(s.ead)}</td><td>{percent(s.share)}</td></tr>)}</tbody></table><p className="muted">Borrower HHI: <strong>{data.summary.borrower_hhi?.toFixed(4) ?? 'Not defined'}</strong> · scale 0–1</p></section></div>
       <section className="insight"><span className="eyebrow">CALCULATION NOTE · DETERMINISTIC</span><p>{narrative}</p><small>No credit recommendation. Figures are derived from the displayed dataset.</small></section>
       <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div><div className="table-scroll"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted">Showing {rows.length} of {data.facilities.length} facilities. Demo inputs—not predictions.</p></section>
-      <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}><div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>setPd(e.target.value)}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>setLgd(e.target.value)}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>setEad(e.target.value)}/></label><label>Scope<select value={industry} onChange={e=>setIndustry(e.target.value)}><option value="">Whole portfolio</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p></div>}</section>
+      <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}><div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>{ invalidateScenario(); setPd(e.target.value); }}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>{ invalidateScenario(); setLgd(e.target.value); }}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>{ invalidateScenario(); setEad(e.target.value); }}/></label><label>Scope<select value={industry} onChange={e=>{ invalidateScenario(); setIndustry(e.target.value); }}><option value="">Whole portfolio</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p>{submittedInputs && <p>Calculated assumptions: PD ×{submittedInputs.pd_multiplier}, LGD ×{submittedInputs.lgd_multiplier}, EAD ×{submittedInputs.ead_multiplier}; scope: {submittedInputs.industry || 'Whole portfolio'}.</p>}<button onClick={() => void downloadScenarioReport()} disabled={scenarioBusy}>{scenarioBusy ? 'Preparing scenario report…' : 'Download scenario report (JSON)'}</button></div>}<p className="muted">Changing any assumption clears the result and cancels its download. Recalculate before exporting. Scenario reports contain assumptions, not forecasts.</p>{scenarioError && <p role="alert">{scenarioError}</p>}{scenarioMessage && <p role="status">{scenarioMessage}</p>}</section>
       <section className="panel" aria-label="Baseline report"><p className="eyebrow">PORTABLE EVIDENCE</p><h2>Take the calculations with you.</h2><p className="muted">Download the active portfolio’s baseline summary, facility inputs, decimal calculation evidence, methodology and source fingerprint as JSON. This does not include your stress scenario and is not an audit or regulatory report.</p><button onClick={() => void downloadReport()} disabled={reportBusy}>{reportBusy ? 'Preparing report…' : 'Download baseline report (JSON)'}</button>{reportError && <p role="alert">{reportError}</p>}{reportMessage && <p role="status">{reportMessage}</p>}</section>
-      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV previews never save data. On explicitly enabled single-user instances, reviewed files can be saved as separate, immutable portfolios. Baseline JSON evidence export is available. ML training, XLSX, formatted reports, authentication and public deployment remain future milestones. No real banking data is used.</p></section></>}
+      <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV previews never save data. On explicitly enabled single-user instances, reviewed files can be saved as separate, immutable portfolios. Baseline and scenario-comparison JSON evidence exports are available. ML training, XLSX, formatted reports, authentication and public deployment remain future milestones. No real banking data is used.</p></section></>}
       <CsvPreview enabled={savingEnabled} onSaved={rememberSaved} onOpen={chooseDataset}/>
       <footer>MATHEMATICS CALCULATES. MODELS ESTIMATE. AI EXPLAINS. HUMANS DECIDE.<span>AegisRisk · Educational portfolio project · Not affiliated with any bank</span></footer>
     </main>

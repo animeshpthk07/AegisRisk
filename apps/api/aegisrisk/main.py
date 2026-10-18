@@ -7,7 +7,7 @@ from hashlib import sha256
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
@@ -132,23 +132,36 @@ class StressInput(BaseModel):
     industry: str | None = Field(None, max_length=50)
 
 
-@app.post("/api/v1/stress")
-def stress(config: StressInput, session: SessionDep, dataset_id: UUID | None = None):
-    rows = load_rows(session, dataset_id)
-    if config.industry and config.industry not in {r.industry for r in rows}:
-        return JSONResponse(status_code=422, content={"detail": "Unknown industry"})
-    baseline = sum((expected_loss(r.pd, r.lgd, r.ead) for r in rows), Decimal(0))
+def stress_payload(rows, config, *, include_evidence=False):
+    rows = sorted(rows, key=lambda row: row.id)
+    if config.industry is not None and config.industry not in {r.industry for r in rows}:
+        raise HTTPException(status_code=422, detail="Unknown industry")
+    baseline = Decimal(0)
     stressed = Decimal(0)
+    evidence = []
+    factors = {key: Decimal(str(value)) for key, value in config.model_dump().items()
+               if key != "industry"}
     for row in rows:
-        if config.industry is None or row.industry == config.industry:
-            stressed += expected_loss(
-                min(Decimal(1), row.pd * Decimal(str(config.pd_multiplier))),
-                min(Decimal(1), row.lgd * Decimal(str(config.lgd_multiplier))),
-                row.ead * Decimal(str(config.ead_multiplier)),
-            )
-        else:
-            stressed += expected_loss(row.pd, row.lgd, row.ead)
-    return {
+        affected = config.industry is None or row.industry == config.industry
+        pd = row.pd * factors["pd_multiplier"] if affected else row.pd
+        lgd = row.lgd * factors["lgd_multiplier"] if affected else row.lgd
+        ead = row.ead * factors["ead_multiplier"] if affected else row.ead
+        base_el = expected_loss(row.pd, row.lgd, row.ead)
+        scenario_el = expected_loss(min(Decimal(1), pd), min(Decimal(1), lgd), ead)
+        baseline += base_el
+        stressed += scenario_el
+        if include_evidence:
+            evidence.append({
+                "id": row.id, "affected": affected,
+                "pd_capped": pd > 1, "lgd_capped": lgd > 1,
+                "stressed_pd": format(min(Decimal(1), pd), "f"),
+                "stressed_lgd": format(min(Decimal(1), lgd), "f"),
+                "stressed_ead": format(ead, "f"),
+                "baseline_el": format(base_el, "f"),
+                "stressed_el": format(scenario_el, "f"),
+                "delta_el": format(scenario_el - base_el, "f"),
+            })
+    result = {
         "baseline_el": float(baseline),
         "stressed_el": float(stressed),
         "delta_el": float(stressed - baseline),
@@ -159,6 +172,33 @@ def stress(config: StressInput, session: SessionDep, dataset_id: UUID | None = N
             "One-year horizon; INR; unchanged recovery timing and dependence assumptions.",
         ],
     }
+    if include_evidence:
+        result["inputs"] = config.model_dump()
+        result["calculation"] = {
+            "decimal_precision": getcontext().prec,
+            "decimal_rounding": getcontext().rounding,
+            "baseline_el_decimal": format(baseline, "f"),
+            "stressed_el_decimal": format(stressed, "f"),
+            "delta_el_decimal": format(stressed - baseline, "f"),
+            "delta_pct_decimal": format((stressed - baseline) / baseline, "f")
+            if baseline else None,
+            "delta_pct_unit": "fraction; multiply by 100 for percent",
+            "affected_facility_count": sum(item["affected"] for item in evidence),
+            "facilities": evidence,
+            "notes": [
+                "User-selected multipliers are assumptions, not forecasts or probabilities.",
+                "PD/LGD are capped at 1 after multiplication. Unselected rows are unchanged.",
+                "Delta percentage is undefined when baseline expected loss is zero.",
+                "Decimal evidence uses the stated context; JSON numbers are display values.",
+                "Synthetic sensitivity only; no IFRS 9, capital, audit or lending conclusion.",
+            ],
+        }
+    return result
+
+
+@app.post("/api/v1/stress")
+def stress(config: StressInput, session: SessionDep, dataset_id: UUID | None = None):
+    return stress_payload(load_rows(session, dataset_id), config)
 
 
 def explanation_payload(stats):
@@ -174,10 +214,9 @@ def explanation(session: SessionDep, dataset_id: UUID | None = None):
     return explanation_payload(summarize(load_rows(session, dataset_id)))
 
 
-@app.get("/api/v1/report")
-def report(session: SessionDep, dataset_id: UUID | None = None):
-    """Read-only baseline evidence; never includes a browser stress scenario."""
-    rows = sorted(load_rows(session, dataset_id), key=lambda row: row.id)
+def baseline_report_payload(rows, dataset_id):
+    """Read-only baseline evidence; rows are loaded once by the caller."""
+    rows = sorted(rows, key=lambda row: row.id)
     baseline = portfolio_payload(rows, dataset_id)
     inputs = [
         {key: getattr(row, key) for key in
@@ -222,4 +261,27 @@ def report(session: SessionDep, dataset_id: UUID | None = None):
                 "Not IFRS 9 ECL, regulatory capital, an audit opinion or production validation.",
             ],
         },
+    }
+
+
+@app.get("/api/v1/report")
+def report(session: SessionDep, dataset_id: UUID | None = None):
+    return baseline_report_payload(load_rows(session, dataset_id), dataset_id)
+
+
+@app.post("/api/v1/scenario-report")
+def scenario_report(config: StressInput, session: SessionDep, dataset_id: UUID | None = None):
+    """Compare one loaded snapshot under explicit assumptions; no writes."""
+    rows = sorted(load_rows(session, dataset_id), key=lambda row: row.id)
+    scenario = stress_payload(rows, config, include_evidence=True)
+    baseline = baseline_report_payload(rows, dataset_id)
+    return {
+        "schema_version": "aegisrisk.scenario-report.v1",
+        "generated_at": baseline["generated_at"],
+        "report_kind": "baseline_and_scenario",
+        "scenario_included": True,
+        **{key: baseline[key] for key in
+           ("dataset_id", "dataset_version", "synthetic", "currency", "horizon")},
+        "baseline": baseline,
+        "scenario": scenario,
     }

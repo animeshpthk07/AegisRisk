@@ -97,8 +97,9 @@ def test_stress_probability_cap(client):
         {"industry": "Not real"},
     ],
 )
-def test_invalid_stress(client, payload):
-    assert client.post("/api/v1/stress", json=payload).status_code == 422
+@pytest.mark.parametrize("resource", ["stress", "scenario-report"])
+def test_invalid_stress(client, payload, resource):
+    assert client.post(f"/api/v1/{resource}", json=payload).status_code == 422
 
 
 def test_grounded_explanation(client):
@@ -464,5 +465,131 @@ def test_report_handles_empty_and_zero_exposure(client):
         assert empty["summary"]["facility_count"] == 0
         assert empty["summary"]["borrower_hhi"] is None
         assert "No facilities loaded." in empty["warnings"]
+    finally:
+        sessions.close()
+
+
+@pytest.mark.parametrize("pd,lgd,ead,expected", [
+    (1, 1, 1, 50), (2, 1, 1, 100), (10, 10, 1, 1000),
+    (0, 1, 1, 0), (1.25, 0.8, 1.5, 75),
+])
+def test_scenario_report_reconciles_with_stress(client, pd, lgd, ead, expected):
+    inputs = {"pd_multiplier": pd, "lgd_multiplier": lgd, "ead_multiplier": ead}
+    before = client.get("/api/v1/portfolio").json()
+    response = client.post("/api/v1/scenario-report", json=inputs)
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    report = response.json()
+    assert report["schema_version"] == "aegisrisk.scenario-report.v1"
+    assert report["report_kind"] == "baseline_and_scenario"
+    assert report["scenario_included"] is True
+    assert report["dataset_id"] is None
+    assert report["dataset_version"] == "demo-v1"
+    assert report["synthetic"] is True
+    assert report["currency"] == "INR"
+    assert report["horizon"] == "one_year"
+    scenario = report["scenario"]
+    live = client.post("/api/v1/stress", json=inputs).json()
+    assert {key: scenario[key] for key in live} == live
+    assert scenario["inputs"] == inputs | {"industry": None}
+    assert scenario["baseline_el"] == 50
+    assert scenario["stressed_el"] == expected
+    calc = scenario["calculation"]
+    assert calc["decimal_precision"] == 28
+    assert calc["decimal_rounding"] == "ROUND_HALF_EVEN"
+    assert Decimal(calc["baseline_el_decimal"]) == 50
+    assert Decimal(calc["stressed_el_decimal"]) == expected
+    assert Decimal(calc["delta_el_decimal"]) == expected - 50
+    assert calc["affected_facility_count"] == 1
+    detail = calc["facilities"][0]
+    assert detail["id"] == "A"
+    assert Decimal(detail["stressed_el"]) == expected
+    assert detail["lgd_capped"] is (lgd == 10)
+    baseline = report["baseline"]
+    assert baseline["generated_at"] == report["generated_at"]
+    assert baseline["scenario_included"] is False
+    assert baseline["summary"] == before["summary"]
+    assert client.get("/api/v1/portfolio").json() == before
+
+
+def test_scenario_report_loads_once_and_scopes_saved_rows(saved_client, monkeypatch):
+    row = CSV_ROW.copy()
+    row[0] = "SYN-OTHER"
+    row[2] = "Services"
+    row[5:8] = ["0.2", "0.5", "200"]
+    saved = save_csv(saved_client, csv_body([row, CSV_ROW])).json()["portfolio"]
+    params = {"dataset_id": saved["id"]}
+    original = api_module.load_rows
+    calls = []
+
+    def tracked_load(session, dataset_id):
+        calls.append(str(dataset_id))
+        return original(session, dataset_id)
+
+    monkeypatch.setattr(api_module, "load_rows", tracked_load)
+    inputs = {"pd_multiplier": 2, "lgd_multiplier": 1, "industry": "Energy"}
+    report = saved_client.post(
+        "/api/v1/scenario-report", params=params, json=inputs
+    ).json()
+    assert calls == [saved["id"]]
+    assert report["dataset_id"] == report["baseline"]["dataset_id"] == saved["id"]
+    assert report["dataset_version"] == "saved-v1:" + saved["id"]
+    scenario = report["scenario"]
+    assert scenario["baseline_el"] == 70
+    assert scenario["stressed_el"] == 120
+    assert scenario["delta_el"] == 50
+    calc = scenario["calculation"]
+    assert calc["affected_facility_count"] == 1
+    assert [item["id"] for item in calc["facilities"]] == [CSV_ROW[0], "SYN-OTHER"]
+    untouched = calc["facilities"][1]
+    assert untouched["affected"] is False
+    assert Decimal(untouched["stressed_el"]) == 20
+    assert Decimal(untouched["delta_el"]) == 0
+    assert sum(Decimal(item["stressed_el"]) for item in calc["facilities"]) == 120
+    baseline = saved_client.get("/api/v1/report", params=params).json()
+    assert report["baseline"]["source"] == baseline["source"]
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 1
+
+
+def test_scenario_report_dataset_guards(saved_client, monkeypatch):
+    saved = save_csv(saved_client).json()["portfolio"]
+    params = {"dataset_id": saved["id"]}
+    path = "/api/v1/scenario-report"
+    assert saved_client.post(path, params={"dataset_id": str(uuid4())},
+                             json={}).status_code == 404
+    assert saved_client.post(path, params={"dataset_id": "invalid"},
+                             json={}).status_code == 422
+    with monkeypatch.context() as patch:
+        patch.setenv("SYNTHETIC_IMPORTS_ENABLED", "false")
+        assert saved_client.post(path, params=params, json={}).status_code == 403
+        assert saved_client.post(path, json={}).status_code == 200
+    sessions = app.dependency_overrides[get_session]()
+    session = next(sessions)
+    try:
+        session.get(SavedPortfolio, saved["id"]).digest = "0" * 64
+        session.commit()
+    finally:
+        sessions.close()
+    response = saved_client.post(path, params=params, json={})
+    assert response.status_code == 503
+    assert "schema_version" not in response.json()
+
+
+def test_scenario_report_zero_baseline_and_empty_portfolio(client):
+    sessions = app.dependency_overrides[get_session]()
+    session = next(sessions)
+    try:
+        session.get(Facility, "A").ead = Decimal(0)
+        session.commit()
+        zero = client.post("/api/v1/scenario-report", json={}).json()["scenario"]
+        assert zero["stressed_el"] == 0
+        assert zero["delta_pct"] is None
+        assert zero["calculation"]["delta_pct_decimal"] is None
+        session.execute(delete(Facility))
+        session.commit()
+        empty = client.post("/api/v1/scenario-report", json={}).json()
+        assert empty["scenario"]["calculation"]["facilities"] == []
+        assert empty["scenario"]["calculation"]["affected_facility_count"] == 0
+        assert empty["baseline"]["source"]["input_rows"] == []
     finally:
         sessions.close()
