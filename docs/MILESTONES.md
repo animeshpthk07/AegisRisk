@@ -14,7 +14,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
 - Bounded synthetic CSV preview with row-level validation and independent risk totals; preview performs no database writes.
 - Opt-in reviewed CSV snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
-- Baseline JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
+- Baseline and scenario-comparison JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
 - PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
 
@@ -89,11 +89,22 @@ CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validat
 - Evidence is retained for seven days in the [browser-check-evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39076727875/artifacts/12117606105). Existing action-runtime warnings and upcoming runner-image notices are maintenance items, not verification failures.
 - This is a baseline JSON reporting checkpoint, not completion of formatted reports, ML, XLSX, authentication, production security or deployment.
 
+### Scenario comparison report verification — 2026-10-18
+
+[Run #17](https://github.com/animeshpthk07/AegisRisk/actions/runs/39144933526) passed for commit `33e355d0c3d8b392596e324e07b0bd5c6cfe76dc`: backend (29s), frontend (29s) and full-stack Chromium (1m 50s); total run duration 1m 54s.
+
+- Read-only scenario JSON exports include a complete baseline report, dataset identity/version, submitted multipliers and scope, baseline/stressed/delta losses, fractional percentage change and per-facility decimal evidence with cap/affected flags. Stress and reporting share the calculation path; each report loads the selected dataset once.
+- The UI binds downloads to the calculated assumptions and selected portfolio. Editing any of the four controls or switching portfolios clears old results and cancels pending calculations/exports. Outages or identity/input/result mismatches produce a visible error with no download; retry remains available.
+- The Chromium step reported **38 passed in 45.80s**. Coverage includes actual desktop/mobile demo and saved-snapshot downloads, exact calculation/report parity, proxy limits, injected failures, all four controls changing during calculation/export, and A → B/A → B → A portfolio changes. Backend tests cover scope, caps, zero/empty cases, loader guards and immutable baselines.
+- Run #16 passed backend/frontend but eight browser cases timed out on an exact scope-label lookup. Giving the dropdown the explicit accessible name `Scenario scope` and updating those locators resolved the failure. No cases or assertions were removed.
+- Synthetic-only screenshots, traces, JUnit results and server logs are retained for seven days in the [browser-check-evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39144933526/artifacts/12143485075). See [DEVELOPMENT.md](DEVELOPMENT.md#inspect-a-scenario-comparison-report) for reproduction.
+- This verifies the tested JSON-reporting slice, not formatted reports, saved scenario history, macroeconomic forecasting, ML, XLSX, authentication, production security or public deployment. Action-runtime/runner-image maintenance notices remain.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is implemented. ML, XLSX imports, formatted/scenario reports, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is implemented. ML, XLSX imports, formatted reports, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
@@ -101,11 +112,11 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; XLSX pending |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
-| M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity verified; broader scenarios pending |
-| M5 API | Partial | Versioned portfolio, preview, reviewed snapshots and baseline report endpoints; full scope pending |
-| M6 Full frontend | Partial | Dashboard, scenario controls, CSV review/save/select and JSON report download; full workbench pending |
+| M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
+| M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline and scenario-report endpoints; full scope pending |
+| M6 Full frontend | Partial | Dashboard, scenario controls, CSV review/save/select and baseline/scenario JSON downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
-| M8 Reports | Partial | Baseline JSON evidence export verified; formatted and scenario reports pending |
+| M8 Reports | Partial | Baseline and scenario-comparison JSON evidence exports verified; formatted reports pending |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
