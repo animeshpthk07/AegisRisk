@@ -110,3 +110,14 @@ In the dashboard, choose **Active portfolio**, then **Download baseline report (
 The report deliberately excludes the currently configured or calculated stress scenario. It does not persist reports or transmit them to an AI provider. The source fingerprint is a reproducibility aid, not a signature or audit certification. Decimal precision and rounding are recorded alongside the calculations. See [CONTRACT.md](CONTRACT.md#baseline-evidence-report-json).
 
 The baseline report test set runs through the same commands above. API tests also cover one-load construction, repeatability excluding generation time, canonical row ordering/numeric spelling, zero exposure, an empty demo, unknown IDs, disabled saved access and corrupt snapshots.
+
+
+## Inspect a scenario comparison report
+
+Choose a portfolio, set the multipliers/scope in **Stress laboratory**, and calculate. Inspect the printed calculated assumptions, then download the scenario JSON. Confirm the outer and nested baseline dataset IDs/versions agree. Compare `scenario.inputs` with the printed assumptions and `scenario` totals with the displayed result. The baseline source fingerprint and input rows are nested under `baseline.source`.
+
+For a saved fictional one-row CSV with PD 0.1, LGD 0.5 and EAD INR 1,000, choose PD ×2, LGD ×1 and EAD ×1. Baseline EL must be INR 50, stressed EL INR 100, delta INR 50 and fractional delta 1 (100%). The decimal evidence must reconcile to these values. Use all multipliers ×1 to reproduce baseline loss; zero baseline loss has a null percentage change.
+
+Change an assumption before recalculating: the old result and its download button must disappear. A report request already in progress must not download after an assumption or portfolio change. Recalculate and retry to download the current result. Reports are read-only, synthetic-only sensitivities; they are not forecasts and do not save scenario history.
+
+The same API/browser commands above cover scenario exports. Added checks include desktop/mobile demo and saved downloads, exact parity with the calculation endpoint, invalid inputs, scope/caps, single-load construction, dataset loader guards, zero/empty cases, proxy limits, failed/mismatched report retry, all four controls changing during calculation/export, and A → B/A → B → A portfolio switches. Delayed/error responses are explicit test fault injections; ordinary downloads use the production frontend, proxy and actual API.

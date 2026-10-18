@@ -562,7 +562,7 @@ def test_scenario_report_failure_and_retry(page, failure):
 
 @pytest.mark.parametrize("phase", ["calculation", "export"])
 @pytest.mark.parametrize("field", ["PD multiplier", "LGD multiplier",
-                                    "EAD multiplier", "Scope"])
+                                    "EAD multiplier", "Scenario scope"])
 def test_assumption_edit_invalidates_pending_scenario_work(page, phase, field):
     expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
     resource = "stress" if phase == "calculation" else "scenario-report"
@@ -581,7 +581,7 @@ def test_assumption_edit_invalidates_pending_scenario_work(page, phase, field):
     busy = "Calculating…" if phase == "calculation" else "Preparing scenario report…"
     expect(page.get_by_role("button", name=busy, exact=True)).to_be_disabled()
     control = page.get_by_label(field, exact=True)
-    if field == "Scope":
+    if field == "Scenario scope":
         control.select_option(index=1)
     else:
         control.fill("2")
@@ -599,7 +599,9 @@ def test_assumption_edit_invalidates_pending_scenario_work(page, phase, field):
         "pd_multiplier": float(page.get_by_label("PD multiplier").input_value()),
         "lgd_multiplier": float(page.get_by_label("LGD multiplier").input_value()),
         "ead_multiplier": float(page.get_by_label("EAD multiplier").input_value()),
-        "industry": page.get_by_label("Scope", exact=True).input_value() or None,
+        "industry": (
+            page.get_by_label("Scenario scope", exact=True).input_value() or None
+        ),
     }
     assert report["scenario"]["inputs"] == expected_inputs
     assert len(downloads) == 1
