@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-16. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-18. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -12,7 +12,9 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Next.js 16.4 / React 19.3 / TypeScript / Tailwind / Recharts frontend.
 - FastAPI / SQLAlchemy / Alembic backend, explicit seed of 40 fictional INR facilities.
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
-- Bounded synthetic CSV preview with row-level validation and independent risk totals; no database writes.
+- Bounded synthetic CSV preview with row-level validation and independent risk totals; preview performs no database writes.
+- Opt-in reviewed CSV snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
+- Baseline JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
 - PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
 
@@ -68,25 +70,44 @@ CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validat
 - This is limited full-stack CSV-preview coverage, not complete E2E/accessibility/security certification, persisted imports, Firefox/WebKit coverage or hosted deployment.
 - Next: persisted synthetic imports with explicit review, atomic database transactions, duplicate handling and regression tests. Preview success is not import persistence.
 
+### Reviewed snapshot verification — 2026-10-17
+
+[Run #12](https://github.com/animeshpthk07/AegisRisk/actions/runs/38982082684) passed for commit `73cc16b0145e2263c7daf1d87face29bbfed9f83`: backend (35s), frontend (27s), and full-stack browser checks (1m 14s).
+
+- CSV review/save/open/reload, duplicate reuse, dataset-scoped calculations and stale stress-response protection were covered. Saving stays explicitly opt-in and local/single-user only.
+- Run #10 stopped at an import-order lint error. Run #11 exposed an overly broad browser assertion. Both were corrected; historical failures remain visible.
+- This supersedes the earlier statement that persisted CSV imports were pending. XLSX, authentication and public hosting remain incomplete.
+
+### Baseline report verification — 2026-10-18
+
+[Run #14](https://github.com/animeshpthk07/AegisRisk/actions/runs/39076727875) passed for commit `3d9024268caff9b7dcc359af71c24141e279e624`: backend (36s), frontend (21s) and full-stack Chromium (1m 22s); total run duration 1m 26s.
+
+- Baseline JSON downloads include dataset identity/version, source input fingerprint, decimal computation evidence, shared dashboard totals and deterministic explanations. The report explicitly excludes stress scenarios and regulatory/audit claims.
+- API regression tests cover single-load construction, repeatability excluding generation time, canonical row order/numeric spelling, empty/zero exposure, disabled saved access, unknown IDs and corrupt snapshot rejection.
+- The Chromium test step reported **21 passed in 22.72s**. Browser regression tests verify actual demo/saved JSON downloads, visible errors with no download, retry recovery, stale response protection across A → B and A → B → A, and an active selection surviving catalog refresh. Existing preview/snapshot coverage still runs.
+- Run #13 passed backend/frontend but the browser job stopped at eight E501 line-length errors in new tests. Commit `3d90242` wrapped those lines without removing assertions; run #14 then passed all jobs.
+- Evidence is retained for seven days in the [browser-check-evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39076727875/artifacts/12117606105). Existing action-runtime warnings and upcoming runner-image notices are maintenance items, not verification failures.
+- This is a baseline JSON reporting checkpoint, not completion of formatted reports, ML, XLSX, authentication, production security or deployment.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a foundation slice, not the completed AegisRisk product. ML, persisted CSV/XLSX imports, reports, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is implemented. ML, XLSX imports, formatted/scenario reports, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
-| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview implemented, persisted CSV/XLSX imports pending |
+| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; XLSX pending |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity verified; broader scenarios pending |
-| M5 API | Partial | Versioned foundation endpoints plus bounded CSV preview and validation tests; full scope pending |
-| M6 Full frontend | Partial | Portfolio dashboard, scenario controls and CSV preview panel; CSV flows verified in CI Chromium, full workbench pending |
+| M5 API | Partial | Versioned portfolio, preview, reviewed snapshots and baseline report endpoints; full scope pending |
+| M6 Full frontend | Partial | Dashboard, scenario controls, CSV review/save/select and JSON report download; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
-| M8 Reports | Not started | |
+| M8 Reports | Partial | Baseline JSON evidence export verified; formatted and scenario reports pending |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
-| M10 Full verification | Partial | Backend/frontend/CSV Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
+| M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
 | Career presentation and learning | Not started | Begin after credible verified application |

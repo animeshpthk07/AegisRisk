@@ -59,7 +59,7 @@ Use the virtual environment's Python. GitHub Actions is configured in the public
 
 The GitHub Actions **Full-stack browser checks** job builds the production Next.js app, migrates and seeds an isolated SQLite database with 40 fictional facilities, starts the real FastAPI and web servers on loopback, and runs `tests/browser/test_csv_preview.py` in Chromium. This is separate from the PostgreSQL migration smoke and backend unit tests.
 
-Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. The outage, disabled-capability and delayed-response tests deliberately inject responses. Ordinary preview and snapshot round-trip requests use the actual proxy/API. Snapshot checks cover reviewed saving, duplicate-byte reuse, reopen after reload, confirmation invalidation and switching away from an in-flight scenario.
+Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. The outage, disabled-capability and delayed-response tests deliberately inject responses. Ordinary preview and snapshot round-trip requests use the actual proxy/API. Snapshot checks cover reviewed saving, duplicate-byte reuse, reopen after reload, confirmation invalidation and switching away from an in-flight scenario. Report checks download and parse actual JSON for the demo and a saved snapshot; simulated failures verify no download on outage or mismatched identity. Delayed responses cover A → B and A → B → A selection changes. Catalog refresh tests preserve a selected snapshot outside the current listing page.
 
 To reproduce against a fresh, fictional-only local database, install the test dependency in the existing virtual environment:
 
@@ -71,6 +71,7 @@ python -m playwright install chromium
 For this isolated test run, set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process, then start the migrated/seeded API as above. Build the web application with `pnpm build`, then start it with `pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000`. With both services running, from the repository root:
 
 ```text
+python -m ruff check --select E,F,I tests/browser
 python -m pytest tests/browser -q --junitxml=test-results/browser.xml
 ```
 
@@ -100,3 +101,12 @@ On Unix, use `export SYNTHETIC_IMPORTS_ENABLED=true`. The frontend discovers the
 Use the UI to preview, review, save and explicitly open a snapshot. Reload resets the active selection to the demo; use the saved catalog to reopen. Byte-identical retries reuse the original record and name. A save that times out is not necessarily absent: retry the same file to resolve the outcome without duplicates.
 
 Do not enable this flag on public/shared deployments. Authentication, authorization, tenant isolation, aggregate storage quotas and retention/deletion controls are not implemented. The per-file 256 KiB and 1,000-row limits are not a total storage budget. This milestone is not a production ingestion service.
+
+
+## Inspect a baseline report
+
+In the dashboard, choose **Active portfolio**, then **Download baseline report (JSON)**. Open the downloaded JSON in a text editor. Verify `dataset_id` and `dataset_version`, the synthetic/INR/one-year labels, summary totals, source input rows and decimal computation evidence. A saved snapshot uses its UUID; the built-in demo uses a null ID and `demo-v1`.
+
+The report deliberately excludes the currently configured or calculated stress scenario. It does not persist reports or transmit them to an AI provider. The source fingerprint is a reproducibility aid, not a signature or audit certification. Decimal precision and rounding are recorded alongside the calculations. See [CONTRACT.md](CONTRACT.md#baseline-evidence-report-json).
+
+The baseline report test set runs through the same commands above. API tests also cover one-load construction, repeatability excluding generation time, canonical row ordering/numeric spelling, zero exposure, an empty demo, unknown IDs, disabled saved access and corrupt snapshots.
