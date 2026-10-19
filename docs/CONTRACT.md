@@ -93,3 +93,14 @@ Preview adds `source_format: csv | xlsx` and two SHA-256 fingerprints:
 - `storage_digest` identifies the stored bytes. CSV bytes are preserved; XLSX is normalized to UTF-8 CSV values with LF record endings. Workbook formatting and the original archive are not retained.
 
 Saved metadata's `digest` is the storage digest and is checked again when loading a snapshot. Workbooks with identical normalized values reuse the existing snapshot/name even if workbook metadata differs. This is byte-normalized deduplication, not arbitrary semantic equivalence: different row order or numeric spelling may still create distinct snapshots. The baseline report's canonical-input fingerprint is a third, separate digest with the semantics documented above.
+
+
+## Printable HTML presentation
+
+The browser can render the baseline or scenario JSON envelope into a standalone HTML download. It calls the existing report endpoints, not a different calculation path. The same dataset/assumption/request-version guards run before either JSON or HTML is offered. The renderer also requires supported schemas, synthetic INR/one-year identity, matching nested baseline identity/time, bounded source rows, matching evidence IDs/counts, valid decimal strings and finite display metrics. This is structural validation, not independent financial recalculation or cryptographic verification.
+
+Every data-derived string is escaped for HTML text context. Dynamic values are never inserted into executable code, URLs or styles. The document contains no scripts, external fonts, links, images or network dependencies; an embedded Content Security Policy denies default resources, scripts, forms and base URL changes. Only its fixed inline CSS is allowed. Files use fixed prefixes with a UUID or demo token and an .html suffix.
+
+Totals and facility evidence preserve supplied decimal strings. Ratios/HHI are rounded display values. The source fingerprint remains a reproducibility aid, not a signature. Print CSS repeats table headers and avoids splitting rows where the browser can honor it. Very large reports may span many pages; browser print pagination differs. Use Print to save a PDF manually; a server-generated PDF artifact is not provided by this feature.
+
+Unit tests cover escaping, malformed identities/evidence, empty/zero totals and scenario details. Real Chromium tests open downloaded baseline/scenario documents, check mobile/desktop layout and print media, and assert no scripts, dialogs or HTTP requests. Synthetic HTML and screenshots are included in CI evidence. These checks are not complete accessibility, multi-browser print or penetration testing.

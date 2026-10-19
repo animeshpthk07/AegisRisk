@@ -100,22 +100,28 @@ CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validat
 - Synthetic-only screenshots, traces, JUnit results and server logs are retained for seven days in the [browser-check-evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39144933526/artifacts/12143485075). See [DEVELOPMENT.md](DEVELOPMENT.md#inspect-a-scenario-comparison-report) for reproduction.
 - This verifies the tested JSON-reporting slice, not formatted reports, saved scenario history, macroeconomic forecasting, ML, XLSX, authentication, production security or public deployment. Action-runtime/runner-image maintenance notices remain.
 
-### Values-only XLSX implementation — 2026-10-19
+### Values-only XLSX verification — 2026-10-19
 
 Added bounded ZIP/XML decoding, shared row validation, raw-upload review and normalized-storage fingerprints, local-only reviewed persistence, and CSV/XLSX UI support. New API cases exercise unsafe/corrupt/unsupported workbooks and metadata-only duplicate handling. New Chromium cases cover desktop/mobile save/reload/reports, formula/corrupt-file recovery and proxy limits.
 
-Status: code and tests written; this feature is not yet called verified. Record the actual GitHub run below only after all jobs finish. No production-security or public-hosting claim is made.
+[Run #20](https://github.com/animeshpthk07/AegisRisk/actions/runs/39217858867) passed for commit `0ff7c60625c6c0a35187e4bfdbc4430b0019ce5b`: backend 39s, frontend 28s and full-stack browser checks 1m 58s. Chromium reported **44 passed in 53.42s**. Synthetic-only evidence is retained for seven days in [the run artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39217858867/artifacts/12169904166).
+
+Run #19 passed frontend/browser but stopped backend before tests at one I001 import-order rule in xlsx.py. Sorting those imports resolved it; no test assertions or validation checks were removed. No production-security or public-hosting claim is made.
+
+### Printable evidence reports — implementation pending verification
+
+Added standalone printable HTML baseline/scenario downloads using the existing API evidence and stale-response guards. The renderer escapes text, embeds no scripts/external assets, prints decimal evidence unchanged, and provides print styles. Unit tests cover malformed evidence and injection text; Chromium tests download/open real reports at desktop/mobile widths and exercise print media. This is not server-generated PDF or a completed security review. Record the new CI result after completion.
 
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX code/tests are added but awaiting this commit’s CI result. ML, formatted reports, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are implemented with verification pending; ML, server-generated PDF, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
-| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; XLSX implementation awaiting CI |
+| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; values-only XLSX verified |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |

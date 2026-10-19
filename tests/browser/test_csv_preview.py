@@ -761,3 +761,78 @@ def test_xlsx_proxy_preserves_consent_and_size_limits(with_consent):
         content=b"x" * 262145 if with_consent else fictional_xlsx(), timeout=10,
     )
     assert response.status_code == (413 if with_consent else 400)
+
+
+@pytest.mark.parametrize("kind", ["baseline", "scenario"])
+@pytest.mark.parametrize("width", [1440, 390])
+def test_printable_report_download_render_and_offline_safety(page, kind, width):
+    label = b"Fictional <script>alert(1)</script> & Birch"
+    body = fictional_csv().replace(b"Fictional Birch", label)
+    name = "Fictional print " + uuid4().hex[:8]
+    snapshot = save_snapshot(body, name)
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+    selector.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "1 fictional facilities"
+    )
+    if kind == "scenario":
+        page.get_by_label("PD multiplier", exact=True).fill("2")
+        page.get_by_label("LGD multiplier", exact=True).fill("1")
+        calculate_scenario(page)
+    with page.expect_download() as pending:
+        page.get_by_role(
+            "button", name=f"Download {kind} report (printable HTML)", exact=True
+        ).click()
+    download = pending.value
+    assert download.suggested_filename == (
+        f"aegisrisk-{kind}-{snapshot['id']}.html"
+    )
+    path = ARTIFACTS / f"printable-{kind}-{width}.html"
+    download.save_as(str(path))
+    html = path.read_text(encoding="utf-8")
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in html
+    assert "<script>" not in html
+    assert snapshot["id"] in html
+    printed = page.context.new_page()
+    requests = []
+    dialogs = []
+    printed.on("request", lambda request: requests.append(request.url))
+    printed.on(
+        "dialog", lambda dialog: (dialogs.append(dialog.message), dialog.dismiss())
+    )
+    try:
+        printed.set_viewport_size({"width": width, "height": 1000})
+        printed.goto(path.resolve().as_uri())
+        title = (
+            "Scenario comparison" if kind == "scenario" else "Baseline portfolio report"
+        )
+        expect(printed.get_by_role("heading", name=title, exact=True)).to_be_visible()
+        expect(printed.get_by_text(label.decode(), exact=False)).to_be_visible()
+        expect(printed.locator("script, iframe, img, link")).to_have_count(0)
+        assert dialogs == []
+        assert not any(url.startswith(("http:", "https:")) for url in requests)
+        assert printed.locator("body").evaluate(
+            "element => element.scrollWidth <= window.innerWidth"
+        )
+        if kind == "scenario":
+            heading = printed.get_by_role(
+                "heading", name="Calculated scenario assumptions"
+            )
+            expect(heading).to_be_visible()
+            expect(printed.get_by_text("PD ×2", exact=False)).to_be_visible()
+        printed.screenshot(
+            path=str(ARTIFACTS / f"printable-{kind}-{width}.png"), full_page=True
+        )
+        printed.emulate_media(media="print")
+        expect(printed.locator(".screen-only")).to_be_hidden()
+        expect(printed.get_by_role("heading", name=title, exact=True)).to_be_visible()
+        assert printed.locator("thead").first.evaluate(
+            "element => getComputedStyle(element).display"
+        ) == "table-header-group"
+        printed.screenshot(
+            path=str(ARTIFACTS / f"print-layout-{kind}-{width}.png"), full_page=True
+        )
+    finally:
+        printed.close()

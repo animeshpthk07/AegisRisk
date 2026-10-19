@@ -15,10 +15,10 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
 - Bounded synthetic CSV and values-only XLSX preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
 - Opt-in reviewed CSV / XLSX snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
-- Downloadable baseline JSON reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
-- Scenario-comparison JSON reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
+- Downloadable baseline JSON and printable HTML reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
+- Scenario-comparison JSON and printable HTML reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
-**Not yet the complete product:** no trained ML model, PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
+**Not yet the complete product:** no trained ML model, server-generated PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
@@ -36,7 +36,7 @@ This image is from the earlier locally verified foundation demo, not a hosted pr
 
 [GitHub verification run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/38730979855) passed on 15 October 2026 for commit `f0c0caf`: backend and frontend checks completed successfully.
 
-In the dashboard, open **CSV preview**, choose **Use fictional example**, confirm synthetic-only data, then select **Validate and preview**. The two-row example should report INR 3,000 EAD and INR 66 one-year expected loss. A download link provides the example CSV. Invalid files show record/field errors and no partial totals.
+In the dashboard, open **CSV / Excel preview**, choose **Use fictional example**, confirm synthetic-only data, then select **Validate and preview**. The two-row example should report INR 3,000 EAD and INR 66 one-year expected loss. A download link provides the example CSV. Invalid files show record/field errors and no partial totals.
 
 The preview supports UTF-8 CSV up to 256 KiB / 1,000 rows. It is independent of the database portfolio, uses no external AI, and never saves uploaded data. See the [validation contract](docs/CONTRACT.md). [Full-stack verification run #8](https://github.com/animeshpthk07/AegisRisk/actions/runs/38855476887) passed on 16 October 2026 for commit `5e8ce09`: backend, frontend and Chromium browser jobs succeeded. The browser checks exercise the production Next.js app, real API and isolated fictional database, including desktop/mobile examples, uploads, rejection paths and retry recovery. Synthetic-only screenshots, traces and results are retained as a seven-day CI artifact. See the [reproduction guide](docs/DEVELOPMENT.md#full-stack-browser-verification).
 
@@ -58,7 +58,7 @@ Previewing does not save. Saving does not switch datasets or overwrite the demo.
 
 ## Baseline evidence download
 
-Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; formatted PDF reports remain future work.
+Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; server-generated PDF reports remain future work.
 
 This report is not an audit opinion, regulatory calculation or credit recommendation. Its fingerprint identifies canonical input content, not authenticity. Dataset switches cancel pending exports. See the [report contract](docs/CONTRACT.md#baseline-evidence-report-json) for schema, rounding and error behavior, and the milestone tracker for verification evidence.
 
@@ -79,3 +79,12 @@ Choose a fictional `.xlsx` file in the same preview panel. Use exactly one visib
 Uploads are limited to 256 KiB with additional ZIP expansion and XML safety checks. Preview is read-only. Saving remains an explicit local-only opt-in; it stores normalized CSV values, not the workbook or formatting. Every save rechecks both the uploaded-byte review fingerprint and the stored-value fingerprint. See the [contract](docs/CONTRACT.md#values-only-xlsx-safety-and-storage) for precise limits and deduplication behavior.
 
 Excel-specific API and desktop/mobile browser tests are included. Their verification status is tracked in [milestones](docs/MILESTONES.md); implementation alone is not evidence that the checks passed.
+
+
+## Readable reports for review and printing
+
+Choose **Download baseline report (printable HTML)** for the active portfolio, or calculate a scenario and choose **Download scenario report (printable HTML)**. Open the downloaded HTML file in your browser. Use the browser’s Print command to print or save as PDF; this is not a server-generated PDF export.
+
+The document is self-contained with no scripts, external assets or network dependencies. It includes dataset identity/time, exact supplied decimal evidence, assumptions, methodology, source fingerprint and limitations. Weighted ratios/HHI are rounded for presentation. Text from the portfolio is HTML-escaped. The JSON download remains available for machine-readable evidence.
+
+These exports use the same identity and stale-response checks as JSON. They do not train a model, sign the evidence, save scenarios or confer banking/regulatory validation. Browser/print-layout verification is recorded in [milestones](docs/MILESTONES.md).
