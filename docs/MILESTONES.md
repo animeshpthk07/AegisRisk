@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-18. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-19. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -12,8 +12,8 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Next.js 16.4 / React 19.3 / TypeScript / Tailwind / Recharts frontend.
 - FastAPI / SQLAlchemy / Alembic backend, explicit seed of 40 fictional INR facilities.
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
-- Bounded synthetic CSV preview with row-level validation and independent risk totals; preview performs no database writes.
-- Opt-in reviewed CSV snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
+- Bounded synthetic CSV / values-only XLSX preview with row-level validation and independent risk totals; preview performs no database writes.
+- Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
 - Baseline and scenario-comparison JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
 - PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
@@ -100,21 +100,27 @@ CSV preview: browser → bounded Next.js proxy → in-memory FastAPI CSV validat
 - Synthetic-only screenshots, traces, JUnit results and server logs are retained for seven days in the [browser-check-evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39144933526/artifacts/12143485075). See [DEVELOPMENT.md](DEVELOPMENT.md#inspect-a-scenario-comparison-report) for reproduction.
 - This verifies the tested JSON-reporting slice, not formatted reports, saved scenario history, macroeconomic forecasting, ML, XLSX, authentication, production security or public deployment. Action-runtime/runner-image maintenance notices remain.
 
+### Values-only XLSX implementation — 2026-10-19
+
+Added bounded ZIP/XML decoding, shared row validation, raw-upload review and normalized-storage fingerprints, local-only reviewed persistence, and CSV/XLSX UI support. New API cases exercise unsafe/corrupt/unsupported workbooks and metadata-only duplicate handling. New Chromium cases cover desktop/mobile save/reload/reports, formula/corrupt-file recovery and proxy limits.
+
+Status: code and tests written; this feature is not yet called verified. Record the actual GitHub run below only after all jobs finish. No production-security or public-hosting claim is made.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is implemented. ML, XLSX imports, formatted reports, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX code/tests are added but awaiting this commit’s CI result. ML, formatted reports, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
-| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; XLSX pending |
+| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; XLSX implementation awaiting CI |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
 | M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline and scenario-report endpoints; full scope pending |
-| M6 Full frontend | Partial | Dashboard, scenario controls, CSV review/save/select and baseline/scenario JSON downloads; full workbench pending |
+| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Partial | Baseline and scenario-comparison JSON evidence exports verified; formatted reports pending |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |

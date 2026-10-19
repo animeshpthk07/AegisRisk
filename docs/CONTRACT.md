@@ -11,9 +11,9 @@ API prefix `/api/v1`; backend localhost:8000, frontend localhost:3000. Frontend 
 
 All displayed portfolio values must come from the backend. No fake model metrics, no claim of full product readiness. Module placeholders should not look completed.
 
-## Synthetic CSV preview (not a persisted import)
+## Synthetic CSV / XLSX preview (not a persisted import)
 
-POST `/api/v1/import-preview` with a raw UTF-8 CSV body, `Content-Type: text/csv`, and `X-AegisRisk-Synthetic: true`. No database access or external AI calls. The acknowledgement is a user assertion, not proof that data is synthetic; never upload customer information.
+POST `/api/v1/import-preview` with a raw UTF-8 CSV body (`Content-Type: text/csv`) or a values-only XLSX body (`Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`), and `X-AegisRisk-Synthetic: true`. No database access or external AI calls. The acknowledgement is a user assertion, not proof that data is synthetic; never upload customer information.
 
 Required headers (any order, exact spelling, no extra/duplicate columns):
 
@@ -27,20 +27,20 @@ Limits: 256 KiB encoded file; 1,000 nonblank data records; UTF-8 BOM accepted. C
 
 PD/LGD are decimal fractions from 0 to 1, at most 10 decimal places, not percentages. EAD is INR from 0 to 1,000,000,000,000 with at most 2 decimal places. Signs, exponents, thousands separators, NaN and infinity are rejected. Currency must be INR and horizon one_year on every row. No automatic conversions or rounding of inputs.
 
-Valid response (200): `{valid:true,persisted:false,digest,synthetic_acknowledged:true,currency,horizon,row_count,valid_rows,invalid_rows:0,issue_count:0,issues:[],issues_truncated:false,summary,warnings}`. Summary uses the existing Decimal risk calculations with JSON numbers for presentation. Example EL is INR 50. Zero total EAD returns null weighted ratios and HHI.
+Valid response (200): `{valid:true,persisted:false,digest,storage_digest,source_format,synthetic_acknowledged:true,currency,horizon,row_count,valid_rows,invalid_rows:0,issue_count:0,issues:[],issues_truncated:false,summary,warnings}`. Summary uses the existing Decimal risk calculations with JSON numbers for presentation. Example EL is INR 50. Zero total EAD returns null weighted ratios and HHI.
 
 Invalid row response (422): same envelope with `valid:false,summary:null` and `issues:[{row,column,code,message}]`. Row means CSV record number, including the header as record 1. At most 100 issues are returned; issue_count records the total. No partial-file summary is calculated. Raw uploaded values are not echoed. Structural/encoding/header errors use `{detail}` (422); missing acknowledgement 400; wrong content type 415; byte/row limits 413.
 
-This previews the uploaded file in isolation. It does not check IDs against existing database facilities, merge, save, replace, or affect the active portfolio. XLSX, authentication and production upload abuse controls remain future work. Persisting a reviewed CSV uses the separate opt-in endpoint below. Do not expose an unauthenticated demo as a customer-data service.
+This previews the uploaded file in isolation. It does not check IDs against existing database facilities, merge, save, replace, or affect the active portfolio. Authentication and production upload abuse controls remain future work. Persisting a reviewed CSV or XLSX uses the separate opt-in endpoint below. Do not expose an unauthenticated demo as a customer-data service.
 
 ## Reviewed synthetic snapshots (disabled by default)
 
 The API process must explicitly opt in with `SYNTHETIC_IMPORTS_ENABLED=true`. This is a local single-user demonstration feature, not permission to expose uploads publicly. There is no authentication, tenant separation, aggregate storage quota or retention/deletion interface. All saved content must be fictional.
 
 - GET `/api/v1/saved-portfolios?offset=0&limit=50`: `{enabled,items:[{id,name,digest,row_count,created_at}],total,offset,limit}`. Offset is nonnegative; limit is 1–100. Disabled instances return an empty disabled catalog. Raw CSV text is not returned by this listing.
-- POST `/api/v1/saved-portfolios?name=...`: raw CSV with `Content-Type: text/csv`, `X-AegisRisk-Synthetic: true`, `X-AegisRisk-Reviewed: true`, and `X-AegisRisk-Preview-Digest` equal to the preview's lowercase SHA-256 digest of the original file bytes. Names are trimmed, printable, nonempty, at most 80 characters and cannot begin with formula-like prefixes.
-- The server revalidates the entire CSV, then compares the digest. A valid new snapshot returns 201: `{persisted:true,created:true,portfolio:{id,name,digest,row_count,created_at}}`. Identical file bytes return 200 with `created:false` and the original metadata/name. No merge, overwrite or partial save occurs.
-- Errors: disabled saving 403; missing review/synthetic acknowledgement 400; wrong content type 415; byte/row limits 413; invalid name/CSV 422; stale preview digest 409; storage failure 503 with a generic message. Validation failures never create a partial snapshot.
+- POST `/api/v1/saved-portfolios?name=...`: raw CSV or XLSX with the matching content type above, `X-AegisRisk-Synthetic: true`, `X-AegisRisk-Reviewed: true`, and `X-AegisRisk-Preview-Digest` equal to the preview's lowercase SHA-256 digest of the original file bytes. Names are trimmed, printable, nonempty, at most 80 characters and cannot begin with formula-like prefixes.
+- The server revalidates the entire file, then compares its original-byte digest. A valid new snapshot returns 201: `{persisted:true,created:true,portfolio:{id,name,digest,row_count,created_at}}`. Identical stored bytes return 200 with `created:false` and the original metadata/name. No merge, overwrite or partial save occurs.
+- Errors: disabled saving 403; missing review/synthetic acknowledgement 400; wrong content type 415; byte/row limits 413; invalid name/CSV/XLSX 422; stale preview digest 409; storage failure 503 with a generic message. Validation failures never create a partial snapshot.
 - GET portfolio, facilities and explanation, plus POST stress, accept `dataset_id=<UUID>`. Omit it to use the seeded demo. A malformed UUID is 422, an unknown ID 404, disabled saved access 403, and a corrupt snapshot 503. None silently fall back to the demo. A selected portfolio reports its ID and `saved-v1:<UUID>` version; the demo reports a null ID.
 
 The browser proxies only fixed resource paths. Preview/save requests are byte-bounded and require the acknowledgement headers; the backend remains authoritative. Saving leaves the current selection unchanged. Opening a saved portfolio is explicit. Dataset switches clear the previous note/scenario and invalidate in-flight responses; reload returns to the demo while preserving saved records. The UI prints rounded currency for presentation; backend Decimal calculations remain the source of truth.
@@ -77,3 +77,19 @@ The selected portfolio is loaded once for both sections. No scenario is persiste
 The browser binds export to the last successful calculation and its submitted assumptions. Every assumption edit invalidates the displayed result and cancels calculation/export requests, even if a control later returns to its previous value. Portfolio switches do the same. Before downloading, the browser checks outer/nested dataset identity, report schema, echoed input values and all four result numbers against that calculation. Mismatches and failed requests produce no download and allow retry. The filename is `aegisrisk-scenario-<UUID or demo>.json`.
 
 This is an educational sensitivity comparison, not a macroeconomic forecast, IFRS 9 result, regulatory-capital estimate, audit opinion or lending recommendation. Formatted reports, scenario persistence and production deployment remain outside this feature.
+
+
+## Values-only XLSX safety and storage
+
+XLSX uses the same ten columns, row validator and Decimal calculations as CSV. It must contain exactly one visible worksheet with its header in row 1 and all populated cells inside A1:J1001. Only text and finite numeric values are supported. Numbers are converted to plain decimals, never rounded to satisfy validation. Boolean, date, error and formula cells are rejected; formulas are never calculated and cached formula values are never trusted.
+
+Rejected content includes hidden rows/columns/sheets, merged cells, defined names, filters, hyperlinks, external relationships, macros and embedded binary objects. XLS and XLSM are unsupported. These strict limits intentionally reject many ordinary workbooks: prepare a clean values-only sheet, not a complex model.
+
+The compressed upload is capped at 256 KiB. Before openpyxl reads it, every ZIP member is checked: at most 64 entries, 4 MiB total expanded bytes, 2 MiB per member and 100:1 maximum compression ratio. Only stored/deflated XML/relationship entries are allowed. Duplicate names, unsafe paths and encrypted entries are rejected. XML is parsed with DTDs, entities and external references forbidden. Physical cell coordinates are bounded independently of worksheet dimensions. Malformed archives return 422; size/coordinate limits return 413. This is defense in depth for a local fictional-data demo, not a production security certification.
+
+Preview adds `source_format: csv | xlsx` and two SHA-256 fingerprints:
+
+- `digest` binds review to the exact uploaded bytes. The save header must match this original-byte digest; workbook metadata edits require fresh review.
+- `storage_digest` identifies the stored bytes. CSV bytes are preserved; XLSX is normalized to UTF-8 CSV values with LF record endings. Workbook formatting and the original archive are not retained.
+
+Saved metadata's `digest` is the storage digest and is checked again when loading a snapshot. Workbooks with identical normalized values reuse the existing snapshot/name even if workbook metadata differs. This is byte-normalized deduplication, not arbitrary semantic equivalence: different row order or numeric spelling may still create distinct snapshots. The baseline report's canonical-input fingerprint is a third, separate digest with the semantics documented above.

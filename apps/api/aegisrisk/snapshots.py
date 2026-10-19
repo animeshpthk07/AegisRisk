@@ -12,7 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .database import get_session
-from .imports import parse_csv, read_csv_body
+from .imports import parse_csv, parse_import, read_csv_body
 from .models import Facility, SavedPortfolio
 
 router = APIRouter()
@@ -79,19 +79,19 @@ async def save_snapshot(
     if request.headers.get("x-aegisrisk-reviewed") != "true":
         raise HTTPException(400, "Review the valid preview and explicitly confirm saving")
     raw = await read_csv_body(request)
-    result, _ = parse_csv(raw)
+    result, _, stored = parse_import(raw, request.headers.get("content-type", ""))
     if not result["valid"]:
         return JSONResponse(status_code=422, content=result)
     if request.headers.get("x-aegisrisk-preview-digest") != result["digest"]:
         raise HTTPException(409, "File changed since preview; validate and review it again")
     existing = session.scalar(select(SavedPortfolio).where(
-        SavedPortfolio.digest == result["digest"]
+        SavedPortfolio.digest == result["storage_digest"]
     ))
     if existing is not None:
         return {"persisted": True, "created": False, "portfolio": metadata(existing)}
     snapshot = SavedPortfolio(
-        id=str(uuid4()), name=name, digest=result["digest"],
-        csv_text=raw.decode("utf-8"), row_count=result["row_count"],
+        id=str(uuid4()), name=name, digest=result["storage_digest"],
+        csv_text=stored.decode("utf-8"), row_count=result["row_count"],
         created_at=datetime.now(UTC).isoformat(),
     )
     session.add(snapshot)
@@ -101,7 +101,7 @@ async def save_snapshot(
         # A concurrent retry of identical bytes must resolve to the same saved snapshot.
         session.rollback()
         existing = session.scalar(select(SavedPortfolio).where(
-            SavedPortfolio.digest == result["digest"]
+            SavedPortfolio.digest == result["storage_digest"]
         ))
         if existing is None:
             raise

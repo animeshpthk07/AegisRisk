@@ -4,11 +4,13 @@ import json
 import re
 import time
 from hashlib import sha256
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import pytest
+from openpyxl import Workbook
 from playwright.sync_api import expect, sync_playwright
 
 BASE_URL = "http://127.0.0.1:3000"
@@ -65,7 +67,9 @@ def page(browser, request):
     tab.on("pageerror", lambda error: errors.append(str(error)))
     tab.set_default_timeout(15000)
     tab.goto(f"{BASE_URL}/#import-preview")
-    heading = tab.get_by_role("heading", name="Check a fictional portfolio CSV.")
+    heading = tab.get_by_role(
+        "heading", name="Check a fictional CSV or Excel portfolio."
+    )
     expect(heading).to_be_visible()
     try:
         yield tab
@@ -89,8 +93,11 @@ def submit(page):
 
 
 def choose_file(page, name, content):
-    page.get_by_label("Synthetic portfolio CSV", exact=True).set_input_files(
-        {"name": name, "mimeType": "text/csv", "buffer": content}
+    page.get_by_label("Synthetic portfolio CSV or XLSX", exact=True).set_input_files(
+        {
+            "name": name, "buffer": content,
+            "mimeType": XLSX_TYPE if name.endswith(".xlsx") else "text/csv",
+        }
     )
 
 
@@ -154,7 +161,7 @@ def test_invalid_probability_has_issues_and_no_partial_totals(page):
 @pytest.mark.parametrize(
     ("name", "content", "message"),
     [
-        ("fictional.xlsx", VALID, "Choose a .csv file"),
+        ("fictional.xlsm", VALID, "Choose a .csv or .xlsx file"),
         ("empty.csv", b"", "non-empty CSV"),
         ("oversized.csv", b"x" * 262145, "non-empty CSV"),
     ],
@@ -655,3 +662,102 @@ def test_scenario_proxy_rejects_get_and_oversized_body():
         f"{BASE_URL}/api/scenario-report", content=b"x" * 4097, timeout=10
     )
     assert response.status_code == 413
+
+
+XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def fictional_xlsx(formula=False):
+    book = Workbook()
+    sheet = book.active
+    sheet.append(HEADER.strip().split(","))
+    sheet.append([
+        "SYN-" + uuid4().hex[:24], "Fictional Excel Birch", "Energy", "West", "B",
+        "=1/10" if formula else 0.1, 0.5, 1000, "INR", "one_year",
+    ])
+    stream = BytesIO()
+    book.save(stream)
+    book.close()
+    return stream.getvalue()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_xlsx_review_save_reload_and_reports(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    body = fictional_xlsx()
+    choose_file(page, "fictional.xlsx", body)
+    page.get_by_role("checkbox", name=CONSENT).check()
+    response = submit(page)
+    assert response.status == 200
+    preview = response.json()
+    assert preview["source_format"] == "xlsx"
+    assert preview["digest"] == sha256(body).hexdigest()
+    assert preview["storage_digest"] != preview["digest"]
+    assert preview["summary"]["total_expected_loss"] == 50
+    panel = page.locator("#import-preview")
+    expect(panel).to_contain_text("Validation passed")
+    save = page.get_by_role("button", name="Save reviewed portfolio", exact=True)
+    expect(save).to_be_disabled()
+    name = "Fictional Excel " + uuid4().hex[:8]
+    page.get_by_label("Saved portfolio name", exact=True).fill(name)
+    page.get_by_role("checkbox", name=REVIEW).check()
+    with page.expect_response(
+        lambda response: "/api/saved-portfolios?" in response.url
+        and response.request.method == "POST"
+    ) as pending:
+        save.click()
+    assert pending.value.status == 201
+    snapshot = pending.value.json()["portfolio"]
+    assert snapshot["digest"] == preview["storage_digest"]
+    page.get_by_role("button", name="Open saved portfolio", exact=True).click()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector).to_have_value(snapshot["id"])
+    metrics = page.get_by_role("region", name="Portfolio metrics")
+    expect(metrics).to_contain_text("1 fictional facilities")
+    _, baseline = download_report(page)
+    assert baseline["summary"]["total_expected_loss"] == 50
+    assert baseline["dataset_id"] == snapshot["id"]
+    page.get_by_label("PD multiplier", exact=True).fill("2")
+    page.get_by_label("LGD multiplier", exact=True).fill("1")
+    calculate_scenario(page)
+    _, scenario = download_scenario_report(page)
+    assert scenario["scenario"]["stressed_el"] == 100
+    assert scenario["dataset_id"] == snapshot["id"]
+    page.reload()
+    expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+    selector.select_option(snapshot["id"])
+    expect(metrics).to_contain_text("1 fictional facilities")
+    expect(metrics).to_contain_text("₹50")
+
+
+@pytest.mark.parametrize("bad_file", ["formula", "corrupt"])
+def test_xlsx_rejection_is_visible_and_csv_retry_recovers(page, bad_file):
+    body = fictional_xlsx(formula=True) if bad_file == "formula" else VALID
+    choose_file(page, "rejected.xlsx", body)
+    page.get_by_role("checkbox", name=CONSENT).check()
+    response = submit(page)
+    assert response.status == 422
+    panel = page.locator("#import-preview")
+    expect(panel.get_by_role("alert")).to_be_visible()
+    expect(panel.get_by_text("Preview EAD", exact=True)).to_have_count(0)
+    expect(
+        page.get_by_role("button", name="Save reviewed portfolio", exact=True)
+    ).to_have_count(0)
+    choose_file(page, "retry.csv", fictional_csv())
+    expect(page.get_by_role("checkbox", name=CONSENT)).not_to_be_checked()
+    page.get_by_role("checkbox", name=CONSENT).check()
+    assert submit(page).status == 200
+    expect(panel.get_by_role("alert")).to_have_count(0)
+    expect(panel).to_contain_text("Validation passed")
+
+
+@pytest.mark.parametrize("with_consent", [False, True])
+def test_xlsx_proxy_preserves_consent_and_size_limits(with_consent):
+    headers = {"Content-Type": XLSX_TYPE}
+    if with_consent:
+        headers["X-AegisRisk-Synthetic"] = "true"
+    response = httpx.post(
+        f"{BASE_URL}/api/import-preview", headers=headers,
+        content=b"x" * 262145 if with_consent else fictional_xlsx(), timeout=10,
+    )
+    assert response.status_code == (413 if with_consent else 400)

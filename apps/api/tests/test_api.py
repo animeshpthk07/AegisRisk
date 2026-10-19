@@ -5,9 +5,11 @@ from datetime import datetime
 from decimal import Decimal
 from hashlib import sha256
 from uuid import uuid4
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 from fastapi.testclient import TestClient
+from openpyxl import Workbook
 from sqlalchemy import create_engine, delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -593,3 +595,144 @@ def test_scenario_report_zero_baseline_and_empty_portfolio(client):
         assert empty["baseline"]["source"]["input_rows"] == []
     finally:
         sessions.close()
+
+
+XLSX_HEADERS = {
+    "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "x-aegisrisk-synthetic": "true",
+}
+
+
+def xlsx_body(rows=None, change=None):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(CSV_COLUMNS)
+    for row in [CSV_ROW] if rows is None else rows:
+        sheet.append(row)
+    if change is not None:
+        change(workbook, sheet)
+    output = io.BytesIO()
+    workbook.save(output)
+    workbook.close()
+    return output.getvalue()
+
+
+def test_xlsx_preview_numeric_values_and_read_only(client):
+    row = CSV_ROW.copy()
+    row[5:8] = [0.1, 0.5, 1000]
+    raw = xlsx_body([row])
+    before = client.get("/api/v1/portfolio").json()
+    response = preview(client, raw, XLSX_HEADERS)
+    assert response.status_code == 200
+    result = response.json()
+    assert result["valid"] is True
+    assert result["source_format"] == "xlsx"
+    assert result["digest"] == sha256(raw).hexdigest()
+    assert result["storage_digest"] != result["digest"]
+    assert result["summary"]["total_expected_loss"] == 50
+    assert result["summary"]["total_ead"] == 1000
+    assert result["persisted"] is False
+    assert client.get("/api/v1/portfolio").json() == before
+
+
+@pytest.mark.parametrize("kind", [
+    "formula", "boolean", "date", "error", "hidden_row", "hidden_column",
+    "extra_sheet", "merged", "hyperlink", "filter", "extra_column", "extra_row",
+])
+def test_xlsx_rejects_unsupported_features_without_save(saved_client, kind):
+    def change(book, sheet):
+        if kind in {"formula", "boolean", "date", "error"}:
+            sheet["F2"] = {"formula": "=0.1", "boolean": True,
+                           "date": datetime(2026, 1, 1), "error": "#DIV/0!"}[kind]
+        elif kind == "hidden_row":
+            sheet.row_dimensions[2].hidden = True
+        elif kind == "hidden_column":
+            sheet.column_dimensions["F"].hidden = True
+        elif kind == "extra_sheet":
+            book.create_sheet("Extra")
+        elif kind == "merged":
+            sheet.merge_cells("A2:B2")
+        elif kind == "hyperlink":
+            sheet["B2"].hyperlink = "https://example.invalid/"
+        elif kind == "filter":
+            sheet.auto_filter.ref = "A1:J2"
+        elif kind == "extra_column":
+            sheet["K2"] = "unexpected"
+        else:
+            sheet["A1002"] = "too far"
+
+    raw = xlsx_body(change=change)
+    status = 413 if kind in {"extra_column", "extra_row"} else 422
+    assert preview(saved_client, raw, XLSX_HEADERS).status_code == status
+    headers = XLSX_HEADERS | {"x-aegisrisk-reviewed": "true",
+                              "x-aegisrisk-preview-digest": sha256(raw).hexdigest()}
+    result = saved_client.post("/api/v1/saved-portfolios?name=Invalid", content=raw,
+                               headers=headers)
+    assert result.status_code == status
+    assert saved_client.get("/api/v1/saved-portfolios").json()["total"] == 0
+
+
+@pytest.mark.parametrize("part,content,status", [
+    ("docProps/custom.xml", b"<!DOCTYPE x [<!ENTITY a 'x'>]><x>&a;</x>", 422),
+    ("xl/vbaProject.bin", b"not executable", 422),
+    ("../unsafe.xml", b"<x/>", 422),
+    ("docProps/oversized.xml", b"<x>" + b"a" * (2 * 1024 * 1024) + b"</x>", 413),
+])
+def test_xlsx_archive_guards(client, part, content, status):
+    output = io.BytesIO(xlsx_body())
+    with ZipFile(output, "a", compression=ZIP_DEFLATED) as archive:
+        archive.writestr(part, content)
+    assert preview(client, output.getvalue(), XLSX_HEADERS).status_code == status
+
+
+def test_xlsx_corrupt_empty_size_and_row_validation(client):
+    assert preview(client, b"not a workbook", XLSX_HEADERS).status_code == 422
+    assert preview(client, b"", XLSX_HEADERS).status_code == 413
+    assert preview(client, b"x" * 262_145, XLSX_HEADERS).status_code == 413
+    assert preview(client, xlsx_body([]), XLSX_HEADERS).status_code == 422
+    row = CSV_ROW.copy()
+    row[0] = "BAD"
+    row[5] = 2
+    result = preview(client, xlsx_body([CSV_ROW, row]), XLSX_HEADERS)
+    assert result.status_code == 422
+    assert result.json()["summary"] is None
+    assert result.json()["invalid_rows"] == 1
+    assert preview(client, xlsx_body([CSV_ROW, CSV_ROW]), XLSX_HEADERS).status_code == 422
+
+
+def test_xlsx_save_review_reopen_deduplicate_and_report(saved_client):
+    client = saved_client
+    raw = xlsx_body()
+    reviewed = preview(client, raw, XLSX_HEADERS).json()
+    headers = XLSX_HEADERS | {"x-aegisrisk-reviewed": "true",
+                              "x-aegisrisk-preview-digest": reviewed["digest"]}
+    before = client.get("/api/v1/portfolio").json()
+    wrong = client.post("/api/v1/saved-portfolios?name=Wrong", content=raw,
+                        headers=headers | {"x-aegisrisk-preview-digest": "0" * 64})
+    assert wrong.status_code == 409
+    response = client.post("/api/v1/saved-portfolios?name=Excel", content=raw, headers=headers)
+    assert response.status_code == 201
+    saved = response.json()["portfolio"]
+    assert saved["digest"] == reviewed["storage_digest"]
+    params = {"dataset_id": saved["id"]}
+    assert client.get("/api/v1/portfolio", params=params).json()["summary"] == reviewed["summary"]
+    report = client.get("/api/v1/report", params=params).json()
+    assert report["dataset_id"] == saved["id"]
+    assert report["summary"]["total_expected_loss"] == 50
+    scenario = client.post("/api/v1/scenario-report", params=params,
+                           json={"pd_multiplier": 2, "lgd_multiplier": 1}).json()
+    assert scenario["scenario"]["stressed_el"] == 100
+    changed = xlsx_body(change=lambda book, sheet: setattr(book.properties, "title", "Changed"))
+    changed_preview = preview(client, changed, XLSX_HEADERS).json()
+    assert changed_preview["digest"] != reviewed["digest"]
+    assert changed_preview["storage_digest"] == reviewed["storage_digest"]
+    assert client.post("/api/v1/saved-portfolios?name=Stale", content=changed,
+                       headers=headers).status_code == 409
+    retry = client.post("/api/v1/saved-portfolios?name=Retry", content=changed,
+                        headers=headers | {"x-aegisrisk-preview-digest":
+                                           changed_preview["digest"]})
+    assert retry.status_code == 200
+    assert retry.json()["created"] is False
+    assert retry.json()["portfolio"] == saved
+    assert client.get("/api/v1/saved-portfolios").json()["total"] == 1
+    assert client.get("/api/v1/portfolio").json() == before

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { percent } from '../lib/format.mjs';
 
 const MAX_BYTES = 262144;
+const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const EXAMPLE = 'id,borrower,industry,geography,rating,pd,lgd,ead,currency,horizon\n' +
   'SYN-CSV-001,Fictional Orchard,Energy,West,B,0.1,0.5,1000.00,INR,one_year\n' +
   'SYN-CSV-002,Fictional Meadow,Services,South,A,0.02,0.4,2000.00,INR,one_year\n';
@@ -16,7 +17,8 @@ type Summary = {
 };
 type Preview = {
   valid: boolean; persisted: false; row_count: number; valid_rows: number; invalid_rows: number;
-  issue_count: number; issues_truncated: boolean; digest: string;
+  issue_count: number; issues_truncated: boolean; digest: string; storage_digest: string;
+  source_format: "csv" | "xlsx";
   issues: { row: number; column: string | null; code: string; message: string }[];
   summary: Summary | null; warnings: string[];
 };
@@ -27,6 +29,7 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
   enabled?: boolean; onSaved?: (portfolio: SavedPortfolio) => void; onOpen?: (id: string) => void;
 }) {
   const [file, setFile] = useState<Blob | null>(null);
+  const [mediaType, setMediaType] = useState('text/csv');
   const [name, setName] = useState('No file selected');
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -44,17 +47,20 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
     setResult(null); setError(''); setFile(null); setName('No file selected');
     setReviewed(false); setSaved(null); setConfirmed(false);
     if (!selected) return;
-    if (!selected.name.toLowerCase().endsWith('.csv')) {
-      setError('Choose a .csv file. XLSX and PDF are not supported by this preview.'); return;
+    const extension = selected.name.toLowerCase().split('.').pop();
+    if (extension !== 'csv' && extension !== 'xlsx') {
+      setError('Choose a .csv or .xlsx file. XLS, XLSM and PDF are not supported.'); return;
     }
+    setMediaType(extension === 'xlsx' ? XLSX_TYPE : 'text/csv');
     if (selected.size === 0 || selected.size > MAX_BYTES) {
-      setError('Choose a non-empty CSV no larger than 256 KiB.'); return;
+      setError('Choose a non-empty CSV or XLSX no larger than 256 KiB.'); return;
     }
     setFile(selected); setName(selected.name);
   }
 
   function example() {
     if (input.current) input.current.value = '';
+    setMediaType('text/csv');
     setFile(new Blob([EXAMPLE], { type: 'text/csv' }));
     setName('Built-in fictional example (2 facilities)'); setResult(null); setError('');
     setReviewed(false); setSaved(null); setConfirmed(false);
@@ -69,12 +75,14 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch('/api/import-preview', {
-        method: 'POST', headers: { 'Content-Type': 'text/csv', 'X-AegisRisk-Synthetic': 'true' },
+        method: 'POST', headers: { 'Content-Type': mediaType, 'X-AegisRisk-Synthetic': 'true' },
         body: file, signal: controller.signal,
       });
       const data = await response.json();
       if (typeof data.valid !== 'boolean' || data.persisted !== false ||
           typeof data.digest !== 'string' || !/^[a-f0-9]{64}$/.test(data.digest) ||
+          typeof data.storage_digest !== 'string' || !/^[a-f0-9]{64}$/.test(data.storage_digest) ||
+          !['csv', 'xlsx'].includes(data.source_format) ||
           !Array.isArray(data.issues) || !Array.isArray(data.warnings) ||
           (data.valid && (!response.ok || !data.summary))) {
         throw new Error(typeof data.detail === 'string' ? data.detail : 'Preview unavailable. Please retry.');
@@ -95,13 +103,13 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const response = await fetch('/api/saved-portfolios?name=' + encodeURIComponent(portfolioName.trim()), {
-        method: 'POST', headers: { 'Content-Type': 'text/csv', 'X-AegisRisk-Synthetic': 'true',
+        method: 'POST', headers: { 'Content-Type': mediaType, 'X-AegisRisk-Synthetic': 'true',
           'X-AegisRisk-Reviewed': 'true', 'X-AegisRisk-Preview-Digest': result.digest },
         body: file, signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok || data.persisted !== true || typeof data.portfolio?.id !== 'string' ||
-          data.portfolio.digest !== result.digest || typeof data.created !== 'boolean') {
+          data.portfolio.digest !== result.storage_digest || typeof data.created !== 'boolean') {
         if (response.status === 409) { setResult(null); setReviewed(false); }
         throw new Error(typeof data.detail === 'string' ? data.detail : 'Save not confirmed. Validate and retry.');
       }
@@ -117,14 +125,14 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
 
   return <section className="panel" id="import-preview" aria-labelledby="csv-preview-title">
     <p className="eyebrow">DATA QUALITY / REVIEW BEFORE SAVE</p>
-    <h2 id="csv-preview-title">Check a fictional portfolio CSV.</h2>
+    <h2 id="csv-preview-title">Check a fictional CSV or Excel portfolio.</h2>
     <p className="muted">Validate rows and inspect calculated totals before saving a separate synthetic portfolio.
       This preview never saves or replaces the active portfolio. Do not upload real customer data.</p>
     <form onSubmit={runPreview} aria-busy={busy || saving}>
-      <label htmlFor="portfolio-csv">Synthetic portfolio CSV</label>
-      <input ref={input} id="portfolio-csv" type="file" accept=".csv,text/csv" disabled={busy || saving}
+      <label htmlFor="portfolio-csv">Synthetic portfolio CSV or XLSX</label>
+      <input ref={input} id="portfolio-csv" type="file" accept={".csv,.xlsx,text/csv," + XLSX_TYPE} disabled={busy || saving}
         aria-describedby="csv-limits" onChange={event => selectFile(event.target.files?.[0])}/>
-      <p id="csv-limits" className="muted">UTF-8 · 256 KiB maximum · 1,000 rows · INR · one-year PD.
+      <p id="csv-limits" className="muted">CSV: UTF-8. XLSX: one visible values-only sheet, A1:J1001; no formulas, macros, links, hidden content or filters. · 256 KiB maximum · 1,000 rows · INR · one-year PD.
         PD/LGD are fractions (0.05 means 5%), not percentages.</p>
       <div className="preview-actions">
         <button type="button" onClick={example} disabled={busy || saving}>Use fictional example</button>
@@ -139,7 +147,7 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
         I confirm this file contains only fictional data, with no customer or personal information.
       </label>
       <button className="primary" disabled={!file || !confirmed || busy || saving}>
-        {busy ? 'Validating CSV…' : 'Validate and preview'}
+        {busy ? 'Validating file…' : 'Validate and preview'}
       </button>
     </form>
     {error && <p role="alert" className="warning">{error}</p>}
@@ -172,13 +180,13 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
         <button type="button" className="primary" disabled={!reviewed || !portfolioName.trim() || saving || busy}
           onClick={savePreview}>{saving ? 'Saving…' : 'Save reviewed portfolio'}</button>
       </> : <>
-        <p role="status">{saved.created ? 'Portfolio saved.' : 'This exact file was already saved.'} {saved.portfolio.name}</p>
+        <p role="status">{saved.created ? 'Portfolio saved.' : 'These stored values were already saved.'} {saved.portfolio.name}</p>
         <p className="muted">The demo portfolio has not been overwritten. Choose this saved dataset to analyse it.</p>
         {onOpen && <button type="button" onClick={() => onOpen(saved.portfolio.id)}>Open saved portfolio</button>}
       </>}
     </div>}
     {result && result.issues.length > 0 && <div className="table-scroll">
-      <table><caption>Validation issues — CSV record numbers include the header</caption>
+      <table><caption>Validation issues — record numbers include the header</caption>
         <thead><tr><th scope="col">Record</th><th scope="col">Field</th><th scope="col">Fix required</th></tr></thead>
         <tbody>{result.issues.map((issue, index) => <tr key={index}>
           <td>{issue.row}</td><td>{issue.column || 'Record'}</td><td>{issue.message}</td>
@@ -187,12 +195,12 @@ export default function CsvPreview({ enabled = false, onSaved, onOpen }: {
       {result.issues_truncated && <p>Showing the first 100 of {result.issue_count} issues. Fix and retry.</p>}
     </div>}
     {result && <ul className="muted">{result.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul>}
-    <details><summary>CSV schema and limitations</summary>
+    <details><summary>CSV / XLSX schema and limitations</summary>
       <p className="preview-schema">id,borrower,industry,geography,rating,pd,lgd,ead,currency,horizon</p>
       <p>Every row needs all 10 fields; column order may vary. Use INR and one_year.
         IDs must be unique within the file. EAD allows two decimal places; PD/LGD allow ten.
         Use consistent borrower names for concentration calculations.</p>
-      <p>Only fictional CSV data is supported. Opt-in saved snapshots preserve exact file bytes; identical bytes reuse the original name and snapshot. XLSX and production upload security are not complete.</p>
+      <p>Only fictional data is supported. CSV snapshots preserve file bytes. XLSX snapshots store normalized CSV values, not workbook formatting. Matching stored values reuse the original snapshot. Workbook archives are limited to 64 entries, 4 MiB expanded and 100:1 compression. Public upload security is not complete.</p>
       <a href="https://github.com/animeshpthk07/AegisRisk/blob/main/docs/CONTRACT.md">Full validation contract</a>
     </details>
   </section>;

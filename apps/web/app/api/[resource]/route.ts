@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation', 'saved-portfolios', 'report']);
 const writes = new Set(['stress', 'scenario-report', 'import-preview', 'saved-portfolios']);
+const uploadTypes = new Set(['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
 const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
 function error(detail: string, status: number) {
   return NextResponse.json({ detail }, { status, headers: safeHeaders });
@@ -21,9 +22,9 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
       if (request.headers.get('x-aegisrisk-synthetic') !== 'true') {
         return error('Confirm synthetic data only before previewing', 400);
       }
-      if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'text/csv') {
-        return error('Send a UTF-8 CSV file', 415);
-      }
+      const mediaType = request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() || '';
+      if (!uploadTypes.has(mediaType)) return error('Send a UTF-8 CSV or values-only XLSX file', 415);
+      headers['Content-Type'] = mediaType;
       headers['X-AegisRisk-Synthetic'] = 'true';
       if (saving) {
         if (request.headers.get('x-aegisrisk-reviewed') !== 'true') {

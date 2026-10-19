@@ -1,4 +1,4 @@
-"""Bounded, synthetic-only CSV preview. Never reads or writes portfolio storage."""
+"""Bounded synthetic CSV/XLSX preview. No portfolio storage access."""
 
 import csv
 import io
@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from .risk import summarize
+from .xlsx import XLSX_TYPE, xlsx_to_csv
 
 router = APIRouter()
 MAX_BYTES = 262_144
@@ -138,11 +139,30 @@ def preview_csv(raw: bytes):
     return result
 
 
+def parse_import(raw: bytes, content_type: str):
+    """Keep review identity separate from normalized storage identity."""
+    media_type = content_type.split(";")[0].strip().lower()
+    if media_type not in ("text/csv", XLSX_TYPE):
+        raise HTTPException(415, "Use UTF-8 CSV or values-only XLSX")
+    stored = xlsx_to_csv(raw, MAX_BYTES, MAX_ROWS) if media_type == XLSX_TYPE else raw
+    result, rows = parse_csv(stored)
+    result["storage_digest"] = result["digest"]
+    result["digest"] = sha256(raw).hexdigest()
+    result["source_format"] = "xlsx" if media_type == XLSX_TYPE else "csv"
+    if media_type == XLSX_TYPE:
+        result["warnings"].append(
+            "XLSX is normalized to CSV values for storage; workbook formatting is not retained."
+        )
+    return result, rows, stored
+
+
 async def read_csv_body(request: Request):
     if request.headers.get("x-aegisrisk-synthetic") != "true":
         raise HTTPException(400, "Confirm synthetic data only before previewing")
-    if request.headers.get("content-type", "").split(";")[0].strip().lower() != "text/csv":
-        raise HTTPException(415, "Send a UTF-8 CSV body with Content-Type: text/csv")
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() not in (
+        "text/csv", XLSX_TYPE,
+    ):
+        raise HTTPException(415, "Use UTF-8 CSV or values-only XLSX")
     raw = bytearray()
     async for chunk in request.stream():
         if len(raw) + len(chunk) > MAX_BYTES:
@@ -153,5 +173,7 @@ async def read_csv_body(request: Request):
 
 @router.post("/api/v1/import-preview")
 async def import_preview(request: Request):
-    result = preview_csv(await read_csv_body(request))
+    result, _, _ = parse_import(
+        await read_csv_body(request), request.headers.get("content-type", ""),
+    )
     return JSONResponse(status_code=200 if result["valid"] else 422, content=result)

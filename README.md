@@ -13,12 +13,12 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - Facility/portfolio expected loss, EAD-weighted metrics, borrower HHI, industry exposures and bounded scenario sensitivity.
 - Deterministic narrative derived from backend totals, not an LLM.
 - PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
-- Bounded synthetic CSV preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
-- Opt-in reviewed CSV snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
+- Bounded synthetic CSV and values-only XLSX preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
+- Opt-in reviewed CSV / XLSX snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
 - Downloadable baseline JSON reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
 - Scenario-comparison JSON reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
-**Not yet the complete product:** no trained ML model, XLSX imports, PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
+**Not yet the complete product:** no trained ML model, PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
@@ -48,12 +48,12 @@ That historical run verifies the CSV-preview slice only, not the later snapshot 
 
 On a local, single-user instance, explicitly set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process after applying migrations. Keep it disabled on shared or public instances: this feature has no authentication, tenant isolation, retention policy or total storage quota.
 
-1. Validate a fictional CSV and inspect its totals.
+1. Validate a fictional CSV or values-only XLSX and inspect its totals.
 2. Enter a name, confirm that you reviewed the totals, then choose **Save reviewed portfolio**.
 3. Choose **Open saved portfolio**. The portfolio, facilities, explanation and stress calculations use that snapshot together.
 4. Use **Active portfolio** to return to the built-in demo or another saved file. Reload returns the selection to the demo, but saved files remain available in the catalog.
 
-Previewing does not save. Saving does not switch datasets or overwrite the demo. Exact duplicate file bytes reuse the original snapshot and name. The server revalidates every save and checks the preview digest; errors never silently fall back to the demo. Only synthetic data is supported.
+Previewing does not save. Saving does not switch datasets or overwrite the demo. Matching stored bytes reuse the original snapshot and name: original bytes for CSV, normalized CSV values for XLSX. The server revalidates every save and checks the preview digest; errors never silently fall back to the demo. Only synthetic data is supported.
 
 
 ## Baseline evidence download
@@ -70,3 +70,12 @@ In **Stress laboratory**, choose the PD/LGD/EAD multipliers and industry scope, 
 Editing any assumption or switching portfolios clears the previous result and cancels pending scenario calculations/downloads. Recalculate before exporting. The browser rejects reports whose dataset, assumptions or result totals do not match the calculation. Failed exports can be retried; they never substitute an older report.
 
 These are synthetic sensitivity assumptions, not economic forecasts or trained estimates. Scenarios are not persisted. PDF presentation and production deployment remain separate milestones. See the [scenario report contract](docs/CONTRACT.md#scenario-comparison-report-json) and the milestone tracker for verification status.
+
+
+## Values-only Excel imports
+
+Choose a fictional `.xlsx` file in the same preview panel. Use exactly one visible worksheet, the documented ten-column header in row 1, and at most 1,000 data rows. PD/LGD are fractions, EAD is INR, and the horizon is one year. Copy values into a clean workbook: formulas, dates, hidden content, merged cells, filters, links and macros are deliberately rejected. XLS and XLSM are unsupported.
+
+Uploads are limited to 256 KiB with additional ZIP expansion and XML safety checks. Preview is read-only. Saving remains an explicit local-only opt-in; it stores normalized CSV values, not the workbook or formatting. Every save rechecks both the uploaded-byte review fingerprint and the stored-value fingerprint. See the [contract](docs/CONTRACT.md#values-only-xlsx-safety-and-storage) for precise limits and deduplication behavior.
+
+Excel-specific API and desktop/mobile browser tests are included. Their verification status is tracked in [milestones](docs/MILESTONES.md); implementation alone is not evidence that the checks passed.

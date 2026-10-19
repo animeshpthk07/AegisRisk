@@ -121,3 +121,12 @@ For a saved fictional one-row CSV with PD 0.1, LGD 0.5 and EAD INR 1,000, choose
 Change an assumption before recalculating: the old result and its download button must disappear. A report request already in progress must not download after an assumption or portfolio change. Recalculate and retry to download the current result. Reports are read-only, synthetic-only sensitivities; they are not forecasts and do not save scenario history.
 
 The same API/browser commands above cover scenario exports. Added checks include desktop/mobile demo and saved downloads, exact parity with the calculation endpoint, invalid inputs, scope/caps, single-load construction, dataset loader guards, zero/empty cases, proxy limits, failed/mismatched report retry, all four controls changing during calculation/export, and A → B/A → B → A portfolio switches. Delayed/error responses are explicit test fault injections; ordinary downloads use the production frontend, proxy and actual API.
+
+
+## Verify values-only XLSX imports
+
+The API install includes pinned openpyxl and defusedxml; no spreadsheet service or credentials are needed. Create a clean workbook with exactly the ten headers from CONTRACT.md in A1:J1, followed by fictional values only. Numeric PD 0.1, LGD 0.5 and EAD 1000 must produce INR 50 one-year EL. Save as XLSX, not XLS or XLSM.
+
+The same test commands above generate real workbooks in memory. API checks cover numeric cells, formula/boolean/date/error cells, hidden content, multiple sheets, merges, hyperlinks, filters, archive/XML limits, invalid probabilities and duplicate IDs. Save checks require the raw workbook review digest, verify the normalized storage digest, and demonstrate metadata-only workbook changes require fresh review but reuse equivalent stored values. Desktop/mobile Chromium tests upload through the real proxy, review/save/reload, and parse baseline/scenario downloads. Formula/corrupt-file rejection and CSV retry are exercised separately.
+
+No original workbook is retained on save. To reproduce normalized storage, read values with formulas disabled only after enforcing the strict archive contract, write CSV with LF line endings and hash those bytes. Do not treat cached formula values as validated numbers. The API is authoritative; browser accept filters are convenience only.
