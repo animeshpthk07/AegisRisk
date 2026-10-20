@@ -39,7 +39,7 @@ Copy `.env.example` to an ignored `.env` locally and replace its demonstration p
 docker compose up --build
 ```
 
-Migration/seed runs before API readiness; the web waits for API readiness. Persistent PostgreSQL volume is retained on ordinary shutdown. Do not delete volumes unless you intend to lose that local data. These container instructions must be tested before claiming deployment readiness.
+Migration/seed runs before API readiness; the web waits for API readiness. Persistent PostgreSQL volume is retained on ordinary shutdown. Do not delete volumes unless you intend to lose that local data. The container path passed the isolated GitHub browser/restart lifecycle in run #22 (see MILESTONES.md). A hosted deployment still requires its own configuration and verification.
 
 ## Checks
 
@@ -145,3 +145,10 @@ Container status, logs, screenshots, traces, report downloads, JUnit results and
 ## Print a self-contained evidence report
 
 Download baseline or scenario **printable HTML**, open the saved file in a browser, then use Print and choose a physical printer or Save as PDF. The file contains local styles and escaped evidence, with no scripts or remote assets. This is a browser-print workflow, not a server-generated PDF service. Scenario reports still require a current calculation and matching assumptions. Desktop/mobile and print-style checks run in Chromium; confirm your own browser/printer's pagination before sharing.
+
+
+## CI runtime maintenance
+
+The workflow targets Ubuntu 24.04 explicitly for all four jobs, retaining Node.js 24 and Python 3.12. The GitHub-maintained checkout, setup-node, setup-python and upload-artifact actions use their documented v7 interfaces. Checkout does not persist a token into the working tree, setup-node automatic package-manager caching is explicitly disabled, and workflow permissions remain contents: read. No test, audit, artifact retention or failure check was removed.
+
+Upgrade guidance: [checkout](https://github.com/actions/checkout), [setup-node](https://github.com/actions/setup-node), [setup-python](https://github.com/actions/setup-python), [upload-artifact](https://github.com/actions/upload-artifact). Re-check these official notes and run all jobs when changing major action or runner versions.

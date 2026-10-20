@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-20. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-21. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -16,7 +16,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
 - Baseline and scenario-comparison JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke; the full Compose stack remains unverified.
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (run #22).
 
 ### How it works
 
@@ -116,9 +116,15 @@ Added standalone printable HTML baseline/scenario downloads using the existing A
 
 Tested documents opened offline, preserved escaped injection-like text, issued no HTTP requests/dialogs, and exposed print styles with repeated table headers at desktop/mobile widths. This does not establish all-browser pagination, full accessibility or production security. Existing action-runtime/runner-image notices remain maintenance items.
 
-### PostgreSQL container lifecycle — implementation 2026-10-20
+### PostgreSQL container lifecycle — verified 2026-10-21
 
-Added an independent CI job that builds the actual API/standalone web images, verifies saving is disabled in the default Compose stack, runs all existing Chromium cases with a test-only save override, then compares saved/demo/report/catalog evidence after PostgreSQL restart and repeat migration/seed. The override is isolated to a disposable CI project; production defaults and loopback bindings remain unchanged. Status: awaiting the actual GitHub run, not yet verified.
+Added an independent CI job that builds the actual API/standalone web images, verifies saving is disabled in the default Compose stack, runs all existing Chromium cases with a test-only save override, then compares saved/demo/report/catalog evidence after PostgreSQL restart and repeat migration/seed. The override is isolated to a disposable CI project; production defaults and loopback bindings remain unchanged. 
+
+[Run #22](https://github.com/animeshpthk07/AegisRisk/actions/runs/39445548042) passed for commit `40358a32e725bf784ec962eaf7385adb94633dee`: backend 44s, frontend 29s, native full-stack Chromium 1m 40s, and PostgreSQL container lifecycle 2m 37s; total 2m 41s. The container browser step reported **48 passed in 45.16s**.
+
+The real API and standalone web images built successfully. Default saving was blocked while preview remained available. The test-only override then enabled fictional snapshots. PostgreSQL/API/web restart, repeat migrations and seed retained the existing portfolio; every recorded report/catalog field except generation timestamps matched, and an identical save reused the original UUID. Synthetic-only evidence is retained for seven days in [container-check-evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/39445548042/artifacts/12275454749).
+
+This verifies the tested container path on an isolated GitHub runner, not hosted deployment, backups/disaster recovery, production security, authentication or bank validation. The run's action-runtime and runner-image notices are maintenance warnings, not failures.
 
 ### What you can inspect
 
@@ -138,7 +144,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Partial | Baseline/scenario JSON and printable HTML evidence exports verified; server-generated PDF pending |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
-| M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
+| M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
 | Career presentation and learning | Not started | Begin after credible verified application |
