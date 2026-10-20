@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-19. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-20. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -108,15 +108,23 @@ Added bounded ZIP/XML decoding, shared row validation, raw-upload review and nor
 
 Run #19 passed frontend/browser but stopped backend before tests at one I001 import-order rule in xlsx.py. Sorting those imports resolved it; no test assertions or validation checks were removed. No production-security or public-hosting claim is made.
 
-### Printable evidence reports — implementation pending verification
+### Printable evidence reports — verified 2026-10-19
 
-Added standalone printable HTML baseline/scenario downloads using the existing API evidence and stale-response guards. The renderer escapes text, embeds no scripts/external assets, prints decimal evidence unchanged, and provides print styles. Unit tests cover malformed evidence and injection text; Chromium tests download/open real reports at desktop/mobile widths and exercise print media. This is not server-generated PDF or a completed security review. Record the new CI result after completion.
+Added standalone printable HTML baseline/scenario downloads using the existing API evidence and stale-response guards. The renderer escapes text, embeds no scripts/external assets, prints decimal evidence unchanged, and provides print styles. Unit tests cover malformed evidence and injection text; Chromium tests download/open real reports at desktop/mobile widths and exercise print media. This is not server-generated PDF or a completed security review.
+
+[Run #21](https://github.com/animeshpthk07/AegisRisk/actions/runs/39218815669) passed for commit `19ed7421fd0ef2db247db41f65c87e621bb7607a`: backend 39s, frontend 22s, full-stack Chromium 2m 11s; total 2m 16s. The browser test step reported **48 passed in 61.31s**. Synthetic HTML, screenshots, traces and results are retained for seven days in [the evidence artifact](https://github.com/animeshpthk07/AegisRisk/actions/runs/39218815669/artifacts/12170318239).
+
+Tested documents opened offline, preserved escaped injection-like text, issued no HTTP requests/dialogs, and exposed print styles with repeated table headers at desktop/mobile widths. This does not establish all-browser pagination, full accessibility or production security. Existing action-runtime/runner-image notices remain maintenance items.
+
+### PostgreSQL container lifecycle — implementation 2026-10-20
+
+Added an independent CI job that builds the actual API/standalone web images, verifies saving is disabled in the default Compose stack, runs all existing Chromium cases with a test-only save override, then compares saved/demo/report/catalog evidence after PostgreSQL restart and repeat migration/seed. The override is isolated to a disposable CI project; production defaults and loopback bindings remain unchanged. Status: awaiting the actual GitHub run, not yet verified.
 
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are implemented with verification pending; ML, server-generated PDF, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are verified by run #21; ML, server-generated PDF, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
@@ -126,9 +134,9 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M3 ML | Not started | No model performance claims |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
 | M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline and scenario-report endpoints; full scope pending |
-| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON downloads; full workbench pending |
+| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON and printable HTML downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
-| M8 Reports | Partial | Baseline and scenario-comparison JSON evidence exports verified; formatted reports pending |
+| M8 Reports | Partial | Baseline/scenario JSON and printable HTML evidence exports verified; server-generated PDF pending |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; broader E2E, accessibility, Compose and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |

@@ -92,3 +92,57 @@ jobs:
           path: test-results/
           retention-days: 7
           if-no-files-found: warn
+  containers:
+    name: PostgreSQL container lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      # Disposable test database only; never a deployment credential.
+      POSTGRES_PASSWORD: ci-only-container-password
+      COMPOSE_PROJECT_NAME: aegisrisk-container-ci
+      COMPOSE_FILE: compose.yaml:tests/containers/compose.yaml
+      AEGISRISK_CONTAINER_TEST: fictional-only
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e './apps/api[dev]' playwright==1.64.0
+      - run: python -m playwright install --with-deps chromium
+      - run: ruff check --select E,F,I tests/containers
+      - name: Build the real API and standalone web images
+        run: docker compose build --pull
+      - name: Verify the safe default stack
+        run: |
+          docker compose -f compose.yaml up -d
+          python tests/containers/check_lifecycle.py defaults
+      - name: Exercise all browser checks against PostgreSQL containers
+        run: |
+          docker compose up -d
+          python -m pytest tests/browser -q --junitxml=test-results/container-browser.xml
+      - name: Capture immutable evidence before restart
+        run: python tests/containers/check_lifecycle.py capture
+      - name: Restart PostgreSQL and re-run migrations and seed
+        run: |
+          docker compose restart db
+          docker compose run --rm migrate
+          docker compose restart api web
+          python tests/containers/check_lifecycle.py verify
+      - name: Collect container diagnostics
+        if: always()
+        run: |
+          mkdir -p test-results
+          docker compose ps -a > test-results/compose-status.txt
+          docker compose logs --no-color > test-results/compose.log 2>&1
+      - name: Retain synthetic-only container evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: container-check-evidence
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Remove only the disposable CI test stack
+        if: always()
+        run: docker compose -p aegisrisk-container-ci down --volumes --remove-orphans

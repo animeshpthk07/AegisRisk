@@ -1,0 +1,6 @@
+# Only for isolated, disposable synthetic integration tests.
+# The default compose.yaml keeps saving disabled.
+services:
+  api:
+    environment:
+      SYNTHETIC_IMPORTS_ENABLED: "true"

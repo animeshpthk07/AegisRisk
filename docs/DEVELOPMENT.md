@@ -130,3 +130,18 @@ The API install includes pinned openpyxl and defusedxml; no spreadsheet service 
 The same test commands above generate real workbooks in memory. API checks cover numeric cells, formula/boolean/date/error cells, hidden content, multiple sheets, merges, hyperlinks, filters, archive/XML limits, invalid probabilities and duplicate IDs. Save checks require the raw workbook review digest, verify the normalized storage digest, and demonstrate metadata-only workbook changes require fresh review but reuse equivalent stored values. Desktop/mobile Chromium tests upload through the real proxy, review/save/reload, and parse baseline/scenario downloads. Formula/corrupt-file rejection and CSV retry are exercised separately.
 
 No original workbook is retained on save. To reproduce normalized storage, read cells with formula expressions preserved for rejection (data_only=False), only after enforcing the strict archive contract, write CSV with LF line endings and hash those bytes. Do not treat cached formula values as validated numbers. The API is authoritative; browser accept filters are convenience only.
+
+
+## Container lifecycle verification
+
+The separate **PostgreSQL container lifecycle** CI job builds the repository's actual API and standalone web Dockerfiles and starts the Compose stack on an isolated GitHub runner. It first uses only the default compose.yaml and confirms that saving is blocked while synthetic preview and the 40-facility demo work. It then adds tests/containers/compose.yaml, which enables saving only for the disposable test environment, and runs the same complete Chromium suite against PostgreSQL.
+
+After the browser suite, check_lifecycle.py saves one additional fictional portfolio and records the demo, saved baseline, scenario and catalog evidence. CI restarts PostgreSQL, re-runs migrations and the idempotent seed, restarts API/web, and compares every recorded field except report generation timestamps. A duplicate save must return the original UUID without changing the catalog. Both the baseline INR 50 and stressed INR 100 are asserted independently.
+
+The job uses the explicit Compose project aegisrisk-container-ci and a public, test-only database password. Its final cleanup removes only that disposable runner project's containers and volume. It does not touch a developer's local volume or any deployed database. Do not copy the CI override or password into a public/shared deployment. The default Compose configuration remains unchanged.
+
+Container status, logs, screenshots, traces, report downloads, JUnit results and the synthetic before-restart evidence are retained as container-check-evidence for seven days. Inspect the actual run before calling the container path verified. A passing runner check is not hosted-deployment, disaster-recovery, load, authentication or production-security certification.
+
+## Print a self-contained evidence report
+
+Download baseline or scenario **printable HTML**, open the saved file in a browser, then use Print and choose a physical printer or Save as PDF. The file contains local styles and escaped evidence, with no scripts or remote assets. This is a browser-print workflow, not a server-generated PDF service. Scenario reports still require a current calculation and matching assumptions. Desktop/mobile and print-style checks run in Chromium; confirm your own browser/printer's pagination before sharing.
