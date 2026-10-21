@@ -22,7 +22,15 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
-## Verified foundation checkpoint
+## Latest verified checkpoint — 21 October 2026
+
+[Verification run #23](https://github.com/animeshpthk07/AegisRisk/actions/runs/39491329995) passed all four jobs for commit `c8d6f66`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. The preceding [container checkpoint](https://github.com/animeshpthk07/AegisRisk/actions/runs/39445548042) recorded 48 passing browser cases against the real Compose images, safe default saving behavior and unchanged evidence after database/application restart and repeat migrations/seed.
+
+These checks cover a synthetic educational workflow, not production banking validation. CI evidence artifacts expire after seven days; source, test definitions and run summaries remain inspectable. See the [reviewer walkthrough](docs/DEMO_GUIDE.md) for a reproducible demonstration, expected calculations, failure checks and honest interview talking points.
+
+The historical checkpoints below describe when individual features were introduced; they are not separate claims that the full product is complete.
+
+## Historical foundation checkpoint
 
 [GitHub verification run #1](https://github.com/animeshpthk07/AegisRisk/actions/runs/38502931162) passed on 14 October 2026: backend tests/lint, PostgreSQL migration/read smoke, frontend typecheck/tests/build, and dependency-audit steps. See the milestone tracker for scope and limitations.
 

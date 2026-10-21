@@ -126,6 +126,12 @@ The real API and standalone web images built successfully. Default saving was bl
 
 This verifies the tested container path on an isolated GitHub runner, not hosted deployment, backups/disaster recovery, production security, authentication or bank validation. The run's action-runtime and runner-image notices are maintenance warnings, not failures.
 
+### CI runtime maintenance — verified 2026-10-21
+
+[Run #23](https://github.com/animeshpthk07/AegisRisk/actions/runs/39491329995) passed for commit `c8d6f66720b3640be8d15b47499fac82add8a02d`: backend 55s, frontend 31s, full-stack Chromium 1m 51s and PostgreSQL container lifecycle 3m 3s; total 3m 34s.
+
+All four jobs now use Ubuntu 24.04. Official checkout/setup-node/setup-python/upload-artifact actions use v7; checkout does not persist credentials and automatic package-manager caching is disabled. Node 24, Python 3.12, read-only repository permissions, dependency audits, test assertions and seven-day evidence retention remain in place. No application security control was relaxed. This is CI maintenance, not deployment or completion of the remaining product milestones.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
@@ -147,7 +153,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
-| Career presentation and learning | Not started | Begin after credible verified application |
+| Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
 
 ## Visible workflow requested by user
 
