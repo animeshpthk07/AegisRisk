@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from .database import get_session
 from .imports import router as import_router
+from .model_lab import router as model_router
 from .models import Facility, SavedPortfolio
 from .risk import expected_loss, summarize
 from .snapshots import load_rows
@@ -24,6 +25,7 @@ from .snapshots import router as snapshot_router
 app = FastAPI(title="AegisRisk", version="0.1.0", description="Synthetic educational demo only")
 app.include_router(import_router)
 app.include_router(snapshot_router)
+app.include_router(model_router)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 

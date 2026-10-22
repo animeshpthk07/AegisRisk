@@ -18,7 +18,9 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - Downloadable baseline JSON and printable HTML reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
 - Scenario-comparison JSON and printable HTML reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
-**Not yet the complete product:** no trained ML model, server-generated PDF reports, authentication or verified public deployment. No real-world banking validation or regulatory compliance claims.
+- Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md); source implementation is not a claim of passed verification.
+
+**Not yet the complete product:** no server-generated PDF reports, authentication or verified public deployment. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 

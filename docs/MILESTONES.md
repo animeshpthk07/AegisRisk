@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-21. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-22. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -132,18 +132,24 @@ This verifies the tested container path on an isolated GitHub runner, not hosted
 
 All four jobs now use Ubuntu 24.04. Official checkout/setup-node/setup-python/upload-artifact actions use v7; checkout does not persist credentials and automatic package-manager caching is disabled. Node 24, Python 3.12, read-only repository permissions, dependency audits, test assertions and seven-day evidence retention remain in place. No application security control was relaxed. This is CI maintenance, not deployment or completion of the remaining product milestones.
 
+### Synthetic Model Lab — implementation 2026-10-22
+
+Added an isolated 3,000-row fictional training recipe, train-only scaling, logistic regression and separate sigmoid calibration/test splits. The model card reports actual held-out metrics against a training-prior baseline, hashes, seeds, versions, calibration bins and limitations. A consent-gated dashboard demonstrates single-profile predictions and raw log-odds contributions without changing portfolio PDs or reports.
+
+Backend and browser regressions cover leakage, reproducibility, bounded inputs, explanation arithmetic, desktop/mobile flows, failures/retry and stale request cancellation. Checks must pass before this slice is marked verified. See [MODEL_LAB.md](MODEL_LAB.md). No real-world performance, production security or hosted release is claimed.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are verified by run #21; ML, server-generated PDF, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are verified by run #21. The synthetic Model Lab is implemented with new regression tests awaiting verification; broader ML validation, server-generated PDF, full security verification and career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
 | M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; values-only XLSX verified |
 | M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
-| M3 ML | Not started | No model performance claims |
+| M3 ML | Synthetic research slice implemented; verification pending | Isolated logistic regression, held-out calibration/test data, baseline metrics and raw-score contributions; no real-world validation |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
 | M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline and scenario-report endpoints; full scope pending |
 | M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON and printable HTML downloads; full workbench pending |

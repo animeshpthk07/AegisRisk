@@ -836,3 +836,133 @@ def test_printable_report_download_render_and_offline_safety(page, kind, width):
         )
     finally:
         printed.close()
+
+
+MODEL_INPUT = {"synthetic": True, "debt_to_assets": 0.6, "interest_coverage": 3.0,
+               "current_ratio": 1.5, "revenue_growth": 0.05}
+MODEL_CONSENT = "I confirm these ratios are fictional and not for a lending decision."
+
+
+def load_model_lab(page):
+    page.get_by_role("button", name="Load model evidence", exact=True).click()
+    panel = page.get_by_role("region", name="Synthetic Model Lab", exact=True)
+    expect(panel.get_by_role("status")).to_contain_text(
+        "Synthetic model evidence ready"
+    )
+    return panel
+
+
+def estimate_model(page):
+    with page.expect_response(
+        lambda response: response.url == f"{BASE_URL}/api/model-predict"
+        and response.request.method == "POST"
+    ) as pending:
+        page.get_by_role("button", name="Estimate fictional event", exact=True).click()
+    assert pending.value.status == 200
+    return pending.value.json()
+
+
+@pytest.mark.parametrize("width", [1440, 390])
+def test_model_lab_metrics_consent_prediction_and_reset(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    panel = load_model_lab(page)
+    table = panel.get_by_role("table", name="Held-out synthetic model metrics")
+    expect(table).to_be_visible()
+    expect(table).to_contain_text("training prior")
+    expect(panel.get_by_role("table", name="Model data splits")).to_contain_text("1800")
+    button = page.get_by_role("button", name="Estimate fictional event", exact=True)
+    expect(button).to_be_disabled()
+    page.get_by_role("checkbox", name=MODEL_CONSENT, exact=True).check()
+    result = estimate_model(page)
+    assert result["portfolio_integration"] is False
+    output = panel.get_by_role("region", name="Synthetic estimate", exact=True)
+    expect(output).to_contain_text(f'{result["calibrated_probability"] * 100:.2f}%')
+    expect(output.get_by_role("table", name="Raw model contributions")).to_be_visible()
+    page.get_by_label("Fictional debt / assets", exact=True).fill("0.8")
+    expect(output).to_have_count(0)
+    assert estimate_model(page)["inputs"]["debt_to_assets"] == 0.8
+    page.get_by_role("checkbox", name=MODEL_CONSENT, exact=True).uncheck()
+    expect(output).to_have_count(0)
+    expect(button).to_be_disabled()
+
+
+@pytest.mark.parametrize("failure", ["outage", "identity"])
+def test_model_evidence_failure_retry(page, failure):
+    page.route("**/api/model-card", lambda route: route.fulfill(
+        status=503 if failure == "outage" else 200,
+        content_type="application/json", body='{"model_id":"wrong-model"}',
+    ))
+    page.get_by_role("button", name="Load model evidence", exact=True).click()
+    panel = page.get_by_role("region", name="Synthetic Model Lab", exact=True)
+    expect(panel.get_by_role("alert")).to_be_visible()
+    expect(panel.get_by_role("table")).to_have_count(0)
+    page.unroute("**/api/model-card")
+    load_model_lab(page)
+    expect(panel.get_by_role("alert")).to_have_count(0)
+
+
+@pytest.mark.parametrize("failure", ["outage", "identity", "inputs"])
+def test_model_prediction_failure_retry(page, failure):
+    panel = load_model_lab(page)
+    page.get_by_role("checkbox", name=MODEL_CONSENT, exact=True).check()
+    invalid = httpx.post(
+        f"{BASE_URL}/api/model-predict", json=MODEL_INPUT, timeout=15
+    ).json()
+    if failure == "identity":
+        invalid["model_id"] = "wrong-model"
+    if failure == "inputs":
+        invalid["inputs"]["debt_to_assets"] = 0.7
+    page.route("**/api/model-predict", lambda route: route.fulfill(
+        status=503 if failure == "outage" else 200,
+        content_type="application/json", body=json.dumps(invalid),
+    ))
+    page.get_by_role("button", name="Estimate fictional event", exact=True).click()
+    expect(panel.get_by_role("alert")).to_be_visible()
+    expect(panel.get_by_role("region", name="Synthetic estimate")).to_have_count(0)
+    page.unroute("**/api/model-predict")
+    estimate_model(page)
+    expect(panel.get_by_role("region", name="Synthetic estimate")).to_be_visible()
+    expect(panel.get_by_role("alert")).to_have_count(0)
+
+
+@pytest.mark.parametrize("field", [
+    "Fictional debt / assets", "Fictional interest coverage", "Fictional current ratio",
+    "Fictional revenue growth", "consent",
+])
+def test_model_pending_result_is_invalidated_by_every_input(page, field):
+    panel = load_model_lab(page)
+    consent = page.get_by_role("checkbox", name=MODEL_CONSENT, exact=True)
+    consent.check()
+    stale = httpx.post(
+        f"{BASE_URL}/api/model-predict", json=MODEL_INPUT, timeout=15
+    ).json()
+    pending = []
+    page.route("**/api/model-predict", lambda route: pending.append(route))
+    page.get_by_role("button", name="Estimate fictional event", exact=True).click()
+    expect(page.get_by_role(
+        "button", name="Estimating synthetic event…"
+    )).to_be_disabled()
+    if field == "consent":
+        consent.uncheck()
+        consent.check()
+    else:
+        control = page.get_by_label(field, exact=True)
+        original = control.input_value()
+        control.fill("0.1")
+        control.fill(original)  # A -> B -> A must not revive the stale request.
+    assert len(pending) == 1
+    pending[0].fulfill(
+        status=200, content_type="application/json", body=json.dumps(stale)
+    )
+    page.unroute("**/api/model-predict")
+    expect(panel.get_by_role("region", name="Synthetic estimate")).to_have_count(0)
+    estimate_model(page)
+    expect(panel.get_by_role("region", name="Synthetic estimate")).to_be_visible()
+
+
+def test_model_proxy_rejects_oversize_and_unknown_dataset():
+    oversized = httpx.post(f"{BASE_URL}/api/model-predict", content="x" * 4097,
+                           headers={"Content-Type": "application/json"}, timeout=10)
+    assert oversized.status_code == 413
+    response = httpx.get(f"{BASE_URL}/api/model-card?dataset_id=demo", timeout=10)
+    assert response.status_code == 422

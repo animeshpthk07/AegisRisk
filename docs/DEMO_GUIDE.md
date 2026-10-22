@@ -10,7 +10,7 @@ Saving is intentionally disabled by default. The preview, demo portfolio and rep
 
 ## 1. Explain the problem and boundary
 
-“I built an educational workbench that makes credit-risk calculations inspectable. It connects validated fictional facility inputs to portfolio summaries, bounded sensitivity scenarios and downloadable evidence. The current version uses supplied PD/LGD assumptions and deterministic explanations, not a trained model or an external LLM.”
+“I built an educational workbench that makes credit-risk calculations inspectable. It connects validated fictional facility inputs to portfolio summaries, bounded sensitivity scenarios and downloadable evidence. Portfolio calculations use supplied PD/LGD assumptions and deterministic explanations. A separate synthetic Model Lab demonstrates training and evaluation; it does not replace those assumptions or use an external LLM.”
 
 The implemented calculation is expected loss: **EL = PD × LGD × EAD**. PD and LGD are fractions; EAD is an INR amount over the supported one-year horizon. This is not a lending decision, a prediction of realized loss, a regulatory capital measure or a claim of bank-grade validation.
 
@@ -71,17 +71,21 @@ Download a printable HTML report, open it offline and inspect its methodology, e
 
 Open the actual Actions run and relevant logs rather than relying on a badge alone. Synthetic screenshots, traces and reports have seven-day retention and may have expired. The source and test definitions remain available for reproduction. Restart persistence is not a backup or disaster-recovery test, and a dependency audit is not a penetration test.
 
+## 8. Inspect the synthetic Model Lab
+
+Open **Synthetic Model Lab** and **Load model evidence**. Inspect the 1,800/600/600 row splits, baseline/raw/calibrated metrics and calibration bins. Explain why an artificial generator is not an external banking benchmark. Confirm the example ratios are fictional, then **Estimate fictional event**. The intercept and feature contributions reconstruct raw log-odds, not the calibrated probability. Change any ratio or withdraw consent: the old estimate must clear, while the active portfolio remains unchanged.
+
 ## Technical discussion map
 
 - **Why Decimal?** To make EL arithmetic and report evidence inspectable without binary floating-point drift. Presentation can round; supplied exact decimal evidence remains available.
 - **Why a fixed proxy?** The browser calls the same-origin Next.js routes, which forward to the configured API rather than an arbitrary caller-supplied destination.
 - **Why immutable snapshots?** Reports can refer to a stable reviewed input set. Preview and save are separate, and every save revalidates the supplied data and review fingerprint.
 - **Why stale-response guards?** A late calculation or export must not be presented as belonging to a different dataset or newer assumptions, including an A → B → A switch.
-- **What does the model learn?** Nothing yet. Trained ML, calibration, leakage controls and out-of-sample evaluation are future work; no accuracy claim is supported by this demo.
+- **What does the model learn?** The isolated Model Lab learns an explicitly artificial relationship between four fictional ratios and simulated labels. It uses separate train/calibration/test data and compares held-out metrics with a constant training-prior baseline. This is pipeline evidence, not real-world credit accuracy. See [MODEL_LAB.md](MODEL_LAB.md) and the latest verified run in the tracker.
 - **What remains before a real deployment?** Authentication, tenant isolation, retention/storage controls, broader security/accessibility verification and an approved hosting design. Real financial documents are not supported by the synthetic-only boundary.
 
 ## Honest completion statement
 
-“The verified slice includes synthetic CSV/XLSX validation, reviewed local snapshots, deterministic risk calculations, guarded sensitivity analysis, evidence exports and automated full-stack/container checks. Trained ML, server-generated PDF, production security and hosted release remain incomplete.”
+“The verified slice includes synthetic CSV/XLSX validation, reviewed local snapshots, deterministic risk calculations, guarded sensitivity analysis, evidence exports and automated full-stack/container checks. An isolated synthetic training/evaluation demonstration is implemented separately; its current verification status is in the tracker. Real-world model validation, server-generated PDF, production security and hosted release remain incomplete.”
 
 Use [MILESTONES.md](MILESTONES.md) as the detailed record. Do not claim regulatory approval, affiliation with a bank, real-world model accuracy, production readiness or a deployed product.
