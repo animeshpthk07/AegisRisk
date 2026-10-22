@@ -208,6 +208,6 @@ async def model_predict(request: Request):
     try:
         data = json.loads(body, object_pairs_hook=strict_object)
         inputs = ModelInput.model_validate(data)
-    except (ValueError, ValidationError):
+    except (ValueError, ValidationError, RecursionError):
         raise HTTPException(422, "Confirm fictional inputs and use finite numeric ratios in range")
     return await run_in_threadpool(predict, inputs)

@@ -118,7 +118,7 @@ def test_api_boundaries_and_read_only_model_card(model):
         assert client.post("/api/v1/model-predict?x=1", json=INPUT).status_code == 422
         assert client.post("/api/v1/model-predict", content="{}").status_code == 415
         headers = {"Content-Type": "application/json"}
-        for content in ('{}', '[]', '{', '{"synthetic":true,"synthetic":true}',
+        for content in ('[' * 1500 + ']' * 1500, '{}', '[]', '{', '{"synthetic":true,"synthetic":true}',
                         '{"debt_to_assets":NaN}', b"\xff"):
             result = client.post("/api/v1/model-predict", content=content, headers=headers)
             assert result.status_code == 422

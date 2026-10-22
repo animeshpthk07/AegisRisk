@@ -116,7 +116,7 @@ export default function ModelLab() {
         <ul>{card.limitations.map(item => <li key={item}>{item}</li>)}</ul>
       </details>
       <h3>Try one fictional ratio profile</h3><p>Ratios are unitless; revenue growth 0.05 means 5%. No names, financial documents or real borrower information.</p>
-      <form onSubmit={estimate}><div className="form-grid">{fields.map(field => <label key={field.name}>{field.label}<input type="number" required min={field.min} max={field.max} step="any" value={values[field.name]} onChange={event => { invalidate(); setValues(previous => ({ ...previous, [field.name]: event.target.value })); }}/><small>{field.min} to {field.max}</small></label>)}</div>
+      <form onSubmit={estimate}><div className="form-grid">{fields.map(field => <label key={field.name}>{field.label}<input aria-label={field.label} type="number" required min={field.min} max={field.max} step="any" value={values[field.name]} onChange={event => { invalidate(); setValues(previous => ({ ...previous, [field.name]: event.target.value })); }}/><small>{field.min} to {field.max}</small></label>)}</div>
         <label><input type="checkbox" checked={consent} onChange={event => { invalidate(); setConsent(event.target.checked); }}/> I confirm these ratios are fictional and not for a lending decision.</label>
         <button className="primary" disabled={!consent || busy}>{busy ? 'Estimating synthetic event…' : 'Estimate fictional event'}</button>
       </form>
