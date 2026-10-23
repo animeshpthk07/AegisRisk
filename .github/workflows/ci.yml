@@ -26,6 +26,24 @@ jobs:
       - run: pip install -e './apps/api[dev]'
       - run: ruff check apps/api
       - run: pytest apps/api/tests -q
+        env:
+          AEGISRISK_PDF_EVIDENCE_DIR: test-results/pdf
+      - name: Render synthetic PDF evidence for browser-only review
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y poppler-utils
+          for report in test-results/pdf/*.pdf; do
+            pdftoppm -r 90 -png "$report" "${report%.pdf}"
+          done
+          python -c "from pathlib import Path; from base64 import b64encode; [print('AEGISRISK_PDF_PREVIEW ' + p.name + ' data:image/png;base64,' + b64encode(p.read_bytes()).decode()) for p in sorted(Path('test-results/pdf').glob('*.png'))]"
+      - name: Retain synthetic PDF review evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pdf-review-evidence
+          path: test-results/pdf/
+          retention-days: 7
+          if-no-files-found: warn
       - name: PostgreSQL migration and read-only smoke
         working-directory: apps/api
         env:

@@ -18,6 +18,7 @@ from .database import get_session
 from .imports import router as import_router
 from .model_lab import router as model_router
 from .models import Facility, SavedPortfolio
+from .pdf_report import pdf_envelope
 from .risk import expected_loss, summarize
 from .snapshots import load_rows
 from .snapshots import router as snapshot_router
@@ -287,3 +288,22 @@ def scenario_report(config: StressInput, session: SessionDep, dataset_id: UUID |
         "baseline": baseline,
         "scenario": scenario,
     }
+
+
+def bounded_pdf(report_data):
+    try:
+        return pdf_envelope(report_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=413, detail="PDF report exceeds its limits") from exc
+
+
+@app.get("/api/v1/report-pdf")
+def report_pdf(session: SessionDep, dataset_id: UUID | None = None):
+    return bounded_pdf(baseline_report_payload(load_rows(session, dataset_id), dataset_id))
+
+
+@app.post("/api/v1/scenario-report-pdf")
+def scenario_report_pdf(
+    config: StressInput, session: SessionDep, dataset_id: UUID | None = None,
+):
+    return bounded_pdf(scenario_report(config, session, dataset_id))

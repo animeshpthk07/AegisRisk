@@ -99,7 +99,7 @@ def test_stress_probability_cap(client):
         {"industry": "Not real"},
     ],
 )
-@pytest.mark.parametrize("resource", ["stress", "scenario-report"])
+@pytest.mark.parametrize("resource", ["stress", "scenario-report", "scenario-report-pdf"])
 def test_invalid_stress(client, payload, resource):
     assert client.post(f"/api/v1/{resource}", json=payload).status_code == 422
 
@@ -736,3 +736,120 @@ def test_xlsx_save_review_reopen_deduplicate_and_report(saved_client):
     assert retry.json()["portfolio"] == saved
     assert client.get("/api/v1/saved-portfolios").json()["total"] == 1
     assert client.get("/api/v1/portfolio").json() == before
+
+
+@pytest.mark.parametrize("scenario", [False, True])
+def test_pdf_download_uses_same_evidence_and_does_not_write(client, scenario):
+    from base64 import b64decode
+
+    from pypdf import PdfReader
+
+    before = client.get("/api/v1/portfolio").json()
+    response = (client.post("/api/v1/scenario-report-pdf", json={"pd_multiplier": 2})
+                if scenario else client.get("/api/v1/report-pdf"))
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    payload = response.json()
+    report = payload["report"]
+    content = b64decode(payload["pdf"]["base64"], validate=True)
+    assert content.startswith(b"%PDF-")
+    assert len(content) == payload["pdf"]["byte_length"]
+    assert sha256(content).hexdigest() == payload["pdf"]["sha256"]
+    assert payload["pdf"]["media_type"] == "application/pdf"
+    pdf = PdfReader(io.BytesIO(content), strict=True)
+    text = "\n".join(page.extract_text() for page in pdf.pages)
+    baseline = report["baseline"] if scenario else report
+    assert baseline["source"]["canonical_sha256"] in text.replace("\n", "")
+    assert "Fictional A" in text
+    assert "1,000.00" in text and "50.00" in text
+    assert "NOT A CREDIT DECISION" in text
+    assert len(pdf.pages) >= 2
+    for index, page in enumerate(pdf.pages, 1):
+        assert f"Page {index}" in page.extract_text()
+        assert not page.get("/Annots")
+    assert not pdf.trailer["/Root"].get("/OpenAction")
+    assert not pdf.trailer["/Root"].get("/AA")
+    assert report["scenario_included"] is scenario
+    if scenario:
+        assert "Scenario comparison" in text
+        assert report["scenario"]["inputs"]["pd_multiplier"] == 2
+        assert report["scenario"]["stressed_el"] == 110
+    else:
+        assert "Baseline only." in text
+    assert client.get("/api/v1/portfolio").json() == before
+
+
+@pytest.mark.parametrize("resource", ["report-pdf", "scenario-report-pdf"])
+def test_pdf_rejects_missing_or_invalid_dataset(client, resource):
+    method = client.post if resource.startswith("scenario") else client.get
+    kwargs = {"json": {}} if resource.startswith("scenario") else {}
+    assert method(f"/api/v1/{resource}?dataset_id=invalid", **kwargs).status_code == 422
+    assert method(f"/api/v1/{resource}?dataset_id={uuid4()}", **kwargs).status_code == 404
+
+
+def test_pdf_escaping_empty_and_maximum_rows(tmp_path):
+    from types import SimpleNamespace
+
+    from pypdf import PdfReader
+
+    from aegisrisk.pdf_report import literal, render_pdf
+
+    assert literal('<img src="https://example.invalid/x"/>') == (
+        '&lt;img src="https://example.invalid/x"/&gt;'
+    )
+    assert literal("Fictional \u03a9") == r"Fictional \u03a9"
+    rows = [SimpleNamespace(
+        id=f"PDF-{index:04d}", borrower="Fictional " + "x" * 85,
+        industry="Energy", geography="West", rating="B",
+        pd=Decimal("0.1234567890"), lgd=Decimal("0.9876543210"),
+        ead=Decimal("1000000000000.00"),
+    ) for index in range(1000)]
+    for source in ([], rows):
+        report = api_module.baseline_report_payload(source, None)
+        content = render_pdf(report)
+        pdf = PdfReader(io.BytesIO(content))
+        text = "\n".join(page.extract_text() for page in pdf.pages)
+        if source:
+            assert all(row.id in text for row in source)
+            assert len(pdf.pages) > 10
+            assert len(content) < 4194304
+        else:
+            assert "No facilities loaded." in text
+            assert "Not defined" in text
+    with pytest.raises(ValueError, match="facility limit"):
+        render_pdf(api_module.baseline_report_payload(rows + [rows[0]], None))
+
+
+def test_pdf_visual_evidence(tmp_path):
+    import os
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    from pypdf import PdfReader
+
+    from aegisrisk.pdf_report import render_pdf
+
+    target = Path(os.environ.get("AEGISRISK_PDF_EVIDENCE_DIR", str(tmp_path)))
+    target.mkdir(parents=True, exist_ok=True)
+    rows = [SimpleNamespace(
+        id=f"PDF-{i:03d}", borrower=f"Fictional Review Company {i:03d}",
+        industry="Energy" if i % 2 else "Technology", geography="West", rating="B",
+        pd=Decimal("0.025"), lgd=Decimal("0.45"), ead=Decimal("2500000"),
+    ) for i in range(40)]
+    baseline = api_module.baseline_report_payload(rows, None)
+    config = api_module.StressInput(pd_multiplier=2, lgd_multiplier=1.2, industry="Energy")
+    scenario = {"report_kind": "baseline_and_scenario", "synthetic": True,
+                "generated_at": baseline["generated_at"], "baseline": baseline,
+                "scenario": api_module.stress_payload(rows, config, include_evidence=True)}
+    for name, report in (("baseline", baseline), ("scenario", scenario)):
+        content = render_pdf(report)
+        (target / f"{name}.pdf").write_bytes(content)
+        reader = PdfReader(io.BytesIO(content))
+        assert all(page.extract_text().strip() for page in reader.pages)
+    rows[0].borrower = '<img src="https://example.invalid/x"/> & Fictional \u03a9'
+    hostile = render_pdf(api_module.baseline_report_payload(rows[:1], None))
+    text = "".join(page.extract_text() for page in PdfReader(io.BytesIO(hostile)).pages)
+    assert '<img src="https://example.invalid/x"/>' in text
+    assert r"\u03a9" in text
+    (target / "literal-labels.pdf").write_bytes(hostile)

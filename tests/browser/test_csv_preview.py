@@ -966,3 +966,144 @@ def test_model_proxy_rejects_oversize_and_unknown_dataset():
     assert oversized.status_code == 413
     response = httpx.get(f"{BASE_URL}/api/model-card?dataset_id=demo", timeout=10)
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("kind", ["baseline", "scenario"])
+@pytest.mark.parametrize("width", [1440, 390])
+def test_server_pdf_download_and_selected_snapshot(page, kind, width):
+    from pypdf import PdfReader
+
+    page.set_viewport_size({"width": width, "height": 1000})
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    for saved in (False, True):
+        dataset_id = "demo"
+        if saved:
+            name = "Fictional PDF " + uuid4().hex[:8]
+            snapshot = save_snapshot(fictional_csv(), name)
+            page.get_by_role("button", name="Refresh saved portfolios").click()
+            selector = page.get_by_label("Active portfolio", exact=True)
+            expect(selector.locator("option").filter(has_text=name)).to_have_count(1)
+            selector.select_option(snapshot["id"])
+            expect(page.get_by_role("region", name="Portfolio metrics"))\
+                .to_contain_text("1 fictional facilities")
+            dataset_id = snapshot["id"]
+        if kind == "scenario":
+            calculate_scenario(page)
+        with page.expect_download() as pending:
+            page.get_by_role(
+                "button", name=f"Download {kind} report (PDF)", exact=True,
+            ).click()
+        download = pending.value
+        assert download.suggested_filename == f"aegisrisk-{kind}-{dataset_id}.pdf"
+        content = Path(download.path()).read_bytes()
+        assert content.startswith(b"%PDF-")
+        reader = PdfReader(BytesIO(content), strict=True)
+        text = "\n".join(p.extract_text() for p in reader.pages)
+        assert "NOT A CREDIT DECISION" in text
+        assert ("saved-v1:" + dataset_id if saved else "demo-v1") in text
+        heading = "Scenario comparison" if kind == "scenario" else "Baseline only."
+        assert heading in text
+        assert all(not p.get("/Annots") for p in reader.pages)
+        download.save_as(str(ARTIFACTS / f"pdf-{kind}-{width}-{saved}.pdf"))
+
+
+@pytest.mark.parametrize("kind", ["baseline", "scenario"])
+@pytest.mark.parametrize("failure", ["outage", "identity", "corrupt", "digest"])
+def test_pdf_failure_downloads_nothing_then_recovers(page, kind, failure):
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    if kind == "scenario":
+        calculate_scenario(page)
+    resource = "report-pdf" if kind == "baseline" else "scenario-report-pdf"
+    invalid = (httpx.get(f"{BASE_URL}/api/{resource}", timeout=15).json()
+               if kind == "baseline" else httpx.post(
+                   f"{BASE_URL}/api/{resource}", json={}, timeout=15,
+               ).json())
+    if failure == "identity":
+        invalid["report"]["dataset_id"] = str(uuid4())
+    elif failure == "corrupt":
+        invalid["pdf"]["base64"] = "bm90IGEgcGRm"
+    elif failure == "digest":
+        invalid["pdf"]["sha256"] = "0" * 64
+    downloads = []
+    page.on("download", lambda d: downloads.append(d))
+    pattern = f"**/api/{resource}"
+    page.route(pattern, lambda route: route.fulfill(
+        status=503 if failure == "outage" else 200,
+        content_type="application/json", body=json.dumps(invalid),
+    ))
+    button = page.get_by_role("button", name=f"Download {kind} report (PDF)")
+    button.click()
+    panel = (page.get_by_role("region", name="Baseline report")
+             if kind == "baseline" else page.locator("#stress"))
+    expect(panel.get_by_role("alert")).to_be_visible()
+    assert downloads == []
+    page.unroute(pattern)
+    with page.expect_download():
+        button.click()
+    assert len(downloads) == 1
+    expect(panel.get_by_role("alert")).to_have_count(0)
+
+
+@pytest.mark.parametrize("kind", ["baseline", "scenario"])
+def test_pdf_dataset_round_trip_cancels_stale_download(page, kind):
+    snapshot = save_snapshot(fictional_csv(), "Fictional PDF race " + uuid4().hex[:8])
+    page.reload()
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    selector = page.get_by_label("Active portfolio", exact=True)
+    expect(selector.locator(f'option[value="{snapshot["id"]}"]')).to_have_count(1)
+    if kind == "scenario":
+        calculate_scenario(page)
+    resource = "report-pdf" if kind == "baseline" else "scenario-report-pdf"
+    pending, downloads = [], []
+    page.on("download", lambda d: downloads.append(d))
+    pattern = f"**/api/{resource}"
+    page.route(pattern, lambda route: pending.append(route))
+    page.get_by_role("button", name=f"Download {kind} report (PDF)").click()
+    expect(page.get_by_role(
+        "button", name="Preparing report…" if kind == "baseline"
+        else "Preparing scenario report…", exact=True,
+    )).to_be_disabled()
+    assert len(pending) == 1
+    selector.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics"))\
+        .to_contain_text("1 fictional facilities")
+    selector.select_option("")
+    expect(page.get_by_role("region", name="Portfolio metrics"))\
+        .to_contain_text("40 fictional facilities")
+    pending[0].fulfill(status=503, content_type="application/json", body="{}")
+    page.unroute(pattern)
+    if kind == "scenario":
+        calculate_scenario(page)
+    with page.expect_download():
+        page.get_by_role("button", name=f"Download {kind} report (PDF)").click()
+    assert len(downloads) == 1
+
+
+def test_pdf_scenario_input_edit_cancels_pending_export(page):
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_be_visible()
+    calculate_scenario(page)
+    pending, downloads = [], []
+    page.on("download", lambda d: downloads.append(d))
+    page.route("**/api/scenario-report-pdf", lambda route: pending.append(route))
+    page.get_by_role("button", name="Download scenario report (PDF)").click()
+    expect(page.get_by_role("button", name="Preparing scenario report…"))\
+        .to_be_disabled()
+    page.get_by_label("PD multiplier", exact=True).fill("2")
+    expect(page.locator(".scenario-result")).to_have_count(0)
+    assert len(pending) == 1
+    pending[0].fulfill(status=503, content_type="application/json", body="{}")
+    page.unroute("**/api/scenario-report-pdf")
+    calculate_scenario(page)
+    with page.expect_download():
+        page.get_by_role("button", name="Download scenario report (PDF)").click()
+    assert len(downloads) == 1
+
+
+def test_pdf_proxy_method_and_size_limits():
+    assert httpx.get(f"{BASE_URL}/api/scenario-report-pdf").status_code == 404
+    assert httpx.post(f"{BASE_URL}/api/report-pdf", json={}).status_code == 404
+    response = httpx.post(
+        f"{BASE_URL}/api/scenario-report-pdf", content=b" " * 4097,
+        headers={"content-type": "application/json"},
+    )
+    assert response.status_code == 413
