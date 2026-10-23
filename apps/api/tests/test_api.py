@@ -781,11 +781,15 @@ def test_pdf_download_uses_same_evidence_and_does_not_write(client, scenario):
 
 
 @pytest.mark.parametrize("resource", ["report-pdf", "scenario-report-pdf"])
-def test_pdf_rejects_missing_or_invalid_dataset(client, resource):
+def test_pdf_rejects_missing_or_invalid_dataset(client, resource, monkeypatch):
     method = client.post if resource.startswith("scenario") else client.get
     kwargs = {"json": {}} if resource.startswith("scenario") else {}
+    monkeypatch.setenv("SYNTHETIC_IMPORTS_ENABLED", "false")
     assert method(f"/api/v1/{resource}?dataset_id=invalid", **kwargs).status_code == 422
-    assert method(f"/api/v1/{resource}?dataset_id={uuid4()}", **kwargs).status_code == 404
+    missing = f"/api/v1/{resource}?dataset_id={uuid4()}"
+    assert method(missing, **kwargs).status_code == 403
+    monkeypatch.setenv("SYNTHETIC_IMPORTS_ENABLED", "true")
+    assert method(missing, **kwargs).status_code == 404
 
 
 def test_pdf_escaping_empty_and_maximum_rows(tmp_path):
