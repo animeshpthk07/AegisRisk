@@ -104,3 +104,25 @@ Every data-derived string is escaped for HTML text context. Dynamic values are n
 Totals and facility evidence preserve supplied decimal strings. Ratios/HHI are rounded display values. The source fingerprint remains a reproducibility aid, not a signature. Print CSS repeats table headers and avoids splitting rows where the browser can honor it. Very large reports may span many pages; browser print pagination differs. Use Print to save a PDF manually; a server-generated PDF artifact is not provided by this feature.
 
 Unit tests cover escaping, malformed identities/evidence, empty/zero totals and scenario details. Real Chromium tests open downloaded baseline/scenario documents, check mobile/desktop layout and print media, and assert no scripts, dialogs or HTTP requests. Synthetic HTML and screenshots are included in CI evidence. These checks are not complete accessibility, multi-browser print or penetration testing.
+
+
+## Isolated synthetic Model Lab
+
+These endpoints do not accept a dataset ID, read a portfolio, persist inputs or change report PDs. All query parameters are rejected (422). The fixed browser proxy exposes only GET `/api/model-card` and POST `/api/model-predict` for these resources; the API prefix below remains `/api/v1`. Responses are non-cacheable.
+
+GET `/api/v1/model-card` returns schema `aegisrisk.model-card.v1`, `model_id: synthetic-logistic-v1`, `synthetic: true`, `portfolio_integration: false`, and a warning. It includes the generator recipe, feature bounds, dataset/split hashes, split sizes and event rates, random seeds, runtime library versions, training/calibration/evaluation descriptions, limitations, and held-out metrics for the training-prior, raw-logistic and calibrated-logistic models. Metrics are ROC AUC, average precision, Brier score and log loss. Fixed calibration bins include row counts; empty-bin means/rates are null, not zero. See [MODEL_LAB.md](MODEL_LAB.md) for the reproducible recipe and leakage boundaries.
+
+POST `/api/v1/model-predict` requires `Content-Type: application/json` and a JSON object of exactly these fields:
+
+```json
+{"synthetic":true,"debt_to_assets":0.6,"interest_coverage":3,"current_ratio":1.5,"revenue_growth":0.05}
+```
+
+- `synthetic` must be the boolean `true`, not a string or integer. This is an acknowledgement, not proof of fictional provenance.
+- `debt_to_assets`: 0–1.5; `interest_coverage`: 0–10; `current_ratio`: 0–4; `revenue_growth`: -0.5–0.5. Bounds are inclusive. Values must be finite JSON numbers; numeric strings and booleans are rejected.
+- Maximum encoded body: 4 KiB. Unknown/missing fields, duplicate keys, malformed/deeply nested JSON and invalid values return 422. An oversized body returns 413; an unsupported content type returns 415. Validation errors do not echo raw submitted data.
+- A successful 200 response carries the model ID, synthetic/integration flags, validated `inputs`, `raw_probability`, `calibrated_probability`, `raw_log_odds`, `intercept`, four feature/log-odds `contributions`, and the warning. Intercept plus contributions reconstructs the raw score, not the calibrated probability; contributions are not causal explanations.
+
+The model is fitted once per API process from the fixed synthetic recipe and cached behind a lock. No serialized uploaded model is loaded and no external AI provider is contacted. A process restart retrains from the same recipe; floating-point results may vary across numerical-library versions.
+
+The UI loads model evidence explicitly, requires fictional-data consent before prediction, validates response identity/echoed inputs, and clears old results when an input or consent changes. Pending requests are cancelled, including A → B → A changes. Errors remain visible with a retry path. The model is not validated on real borrowers and must not be used for lending decisions.

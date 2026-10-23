@@ -18,15 +18,17 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - Downloadable baseline JSON and printable HTML reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
 - Scenario-comparison JSON and printable HTML reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
-- Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md); source implementation is not a claim of passed verification.
+- Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md) and the verified checkpoint below; synthetic test performance is not real-world model validation.
 
 **Not yet the complete product:** no server-generated PDF reports, authentication or verified public deployment. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
-## Latest verified checkpoint — 21 October 2026
+## Latest verified checkpoint — 23 October 2026
 
-[Verification run #23](https://github.com/animeshpthk07/AegisRisk/actions/runs/39491329995) passed all four jobs for commit `c8d6f66`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. The preceding [container checkpoint](https://github.com/animeshpthk07/AegisRisk/actions/runs/39445548042) recorded 48 passing browser cases against the real Compose images, safe default saving behavior and unchanged evidence after database/application restart and repeat migrations/seed.
+[Verification run #27](https://github.com/animeshpthk07/AegisRisk/actions/runs/39834579698) passed all four jobs for commit `b9ddf98`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. It recorded **130 backend tests**, **19 frontend unit tests**, and **61 browser cases in each of the native and real Compose/PostgreSQL environments**. Database/application restart and repeat migrations/seed preserved the recorded evidence and duplicate-save behavior.
+
+This checkpoint includes the isolated synthetic Model Lab and Next.js **16.4.1** security patch. Frozen-lockfile installation, type checking, production builds and both dependency audits passed. Audits found no known vulnerabilities at that time; this is not a guarantee of future or complete security. See [milestones](docs/MILESTONES.md) for the failure diagnoses and fixes, and [official Next.js release notes](https://github.com/vercel/next.js/releases/tag/v16.4.1) for the patched advisories.
 
 These checks cover a synthetic educational workflow, not production banking validation. CI evidence artifacts expire after seven days; source, test definitions and run summaries remain inspectable. See the [reviewer walkthrough](docs/DEMO_GUIDE.md) for a reproducible demonstration, expected calculations, failure checks and honest interview talking points.
 
