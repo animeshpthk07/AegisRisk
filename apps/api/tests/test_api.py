@@ -835,7 +835,7 @@ def test_pdf_visual_evidence(tmp_path):
     rows = [SimpleNamespace(
         id=f"PDF-{i:03d}", borrower=f"Fictional Review Company {i:03d}",
         industry="Energy" if i % 2 else "Technology", geography="West", rating="B",
-        pd=Decimal("0.025"), lgd=Decimal("0.45"), ead=Decimal("2500000"),
+        pd=Decimal("0.025"), lgd=Decimal("0.45"), ead=Decimal(2500000),
     ) for i in range(40)]
     baseline = api_module.baseline_report_payload(rows, None)
     config = api_module.StressInput(pd_multiplier=2, lgd_multiplier=1.2, industry="Energy")
