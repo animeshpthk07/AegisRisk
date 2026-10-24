@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-23. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-24. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -14,9 +14,9 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Decimal EL calculation, EAD weights, borrower HHI, industry breakdown, search and scenario sensitivity.
 - Bounded synthetic CSV / values-only XLSX preview with row-level validation and independent risk totals; preview performs no database writes.
 - Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
-- Baseline and scenario-comparison JSON evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
+- Baseline and scenario-comparison JSON, printable HTML and server-generated PDF evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (run #22).
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified run #34).
 
 ### How it works
 
@@ -152,11 +152,26 @@ Backend and browser regressions cover leakage, reproducibility, bounded inputs, 
 
 This verifies the implemented synthetic research workflow and its tested integrations, not real-world predictive performance, fairness, regulatory suitability, penetration testing or hosted deployment. A clean dependency audit is a point-in-time check, not a security guarantee.
 
+### Server-generated PDF evidence — verified 2026-10-24
+
+[Run #34](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863) passed all four jobs for commit `cb756b67c6e46807b3078307d79afbff81eda46f`: backend 1m 22s, frontend 27s, full-stack Chromium 3m 2s and PostgreSQL container lifecycle 3m 39s; total 3m 43s. The job logs were read through the visible browser.
+
+- Backend: **141 passed**, one warning; lint, PostgreSQL migration/read smoke and dependency audit passed.
+- Frontend: **19 passed**, frozen-lockfile installation, typecheck, Next.js 16.4.1 production build and production dependency audit passed. Both dependency audits reported no known vulnerabilities at this checkpoint.
+- Full-stack browser checks: **77 passed in 100.99s** with the native test servers; **77 passed in 82.18s** against real Compose images and PostgreSQL. Container restart, repeat migration/seed and duplicate reuse checks also passed.
+- ReportLab renders baseline/scenario PDF envelopes from a single load of the same report evidence. Bounds are 1,000 facilities and 4 MiB. Export performs no database write, provider call or external asset fetch. The browser validates identity, assumptions, calculated totals, byte count, PDF header and SHA-256, then rechecks request versions after asynchronous hashing.
+- Regression coverage includes real desktop/mobile demo and saved-snapshot downloads; failed or malformed responses with retry; stale responses and assumption changes; API input/loader guards; a 1,000-row document with all identifiers retained; and literal markup/Unicode-escape handling. PDF extraction checks do not substitute for visual review.
+- **Visual review completed in the browser:** all 13 Poppler-rendered fixture pages were inspected (baseline 4, literal labels 2, scenario 7). Text, tables, repeated headings and numbered footers were readable without clipping/overlap. The scenario summary labels INR amounts, fractional change and affected-facility count separately. Baseline evidence limitations and scenario limitations have distinct headings. This is fixture-specific review, not proof for every possible input or print device.
+- Interpretation fixes are in `f8df7fd`; regression assertions in `3eb68ed`; the PDF contract in `cb756b6`. Runs #32, #33 and #34 all passed. Historical failed runs remain visible; this entry does not relabel them successful.
+- Seven-day artifacts: [PDFs and rendered pages](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863/artifacts/12554310733), [browser evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863/artifacts/12553868637), and [container evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863/artifacts/12554276792).
+
+Portable PDF labels use explicit Unicode escapes for non-ASCII characters; JSON retains original text. These are not tagged accessible or digitally signed PDFs. A digest is an integrity check, not trusted provenance. This checkpoint does not establish authentication, public-hosted operation, independent model validation, production security or completion of all five project phases. See [the PDF contract](CONTRACT.md#server-generated-pdf-evidence).
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
 
-This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are verified by run #21. The synthetic Model Lab and Next.js security patch are verified by run #27; broader ML validation, server-generated PDF, full security verification and career materials remain incomplete.
+This is a growing verified slice, not the completed AegisRisk product. Reviewed CSV persistence is verified. Values-only XLSX review/save/reports are verified by run #20. Printable HTML reports are verified by run #21. The synthetic Model Lab and Next.js security patch are verified by run #27, and server-generated PDFs by run #34. Broader ML validation, full security verification, hosted deployment and public career materials remain incomplete.
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
@@ -166,9 +181,9 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M3 ML | Synthetic research slice verified (run #27) | Isolated logistic regression, held-out calibration/test data, baseline metrics and raw-score contributions; no real-world validation |
 | M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
 | M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline/scenario reports and isolated model-card/prediction endpoints; full scope pending |
-| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON and printable HTML downloads; full workbench pending |
+| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON, printable HTML and PDF downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
-| M8 Reports | Partial | Baseline/scenario JSON and printable HTML evidence exports verified; server-generated PDF pending |
+| M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
 | M9 Security | In progress | Local-only, synthetic-only, no API credentials |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
