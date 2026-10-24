@@ -15,20 +15,20 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
 - Bounded synthetic CSV and values-only XLSX preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
 - Opt-in reviewed CSV / XLSX snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
-- Downloadable baseline JSON and printable HTML reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
-- Scenario-comparison JSON and printable HTML reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
+- Downloadable baseline JSON, printable HTML and server-generated PDF reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
+- Scenario-comparison JSON, printable HTML and server-generated PDF reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
 
 - Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md) and the verified checkpoint below; synthetic test performance is not real-world model validation.
 
-**Not yet the complete product:** no server-generated PDF reports, authentication or verified public deployment. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
+**Not yet the complete product:** no authentication or verified public deployment. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), and [API contract](docs/CONTRACT.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
-## Latest verified checkpoint — 23 October 2026
+## Latest verified checkpoint — 24 October 2026
 
-[Verification run #27](https://github.com/animeshpthk07/AegisRisk/actions/runs/39834579698) passed all four jobs for commit `b9ddf98`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. It recorded **130 backend tests**, **19 frontend unit tests**, and **61 browser cases in each of the native and real Compose/PostgreSQL environments**. Database/application restart and repeat migrations/seed preserved the recorded evidence and duplicate-save behavior.
+[Verification run #34](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863) passed all four jobs for commit `cb756b6`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. It recorded **141 backend tests**, **19 frontend unit tests**, and **77 browser cases in each of the native and real Compose/PostgreSQL environments**. Database/application restart and repeat migrations/seed preserved the recorded evidence and duplicate-save behavior.
 
-This checkpoint includes the isolated synthetic Model Lab and Next.js **16.4.1** security patch. Frozen-lockfile installation, type checking, production builds and both dependency audits passed. Audits found no known vulnerabilities at that time; this is not a guarantee of future or complete security. See [milestones](docs/MILESTONES.md) for the failure diagnoses and fixes, and [official Next.js release notes](https://github.com/vercel/next.js/releases/tag/v16.4.1) for the patched advisories.
+This checkpoint includes server-generated baseline/scenario PDFs, the isolated synthetic Model Lab and the Next.js **16.4.1** security patch. All 13 rendered pages of the baseline, scenario and literal-label PDF fixtures were visually reviewed in the browser on 24 October: tables, repeated headings, page footers, units and separate baseline/scenario limitations were readable without clipping or overlap. This review covers those fixtures, not every possible uploaded label or layout. Frozen-lockfile installation, type checking, production builds and both dependency audits passed. Audits found no known vulnerabilities at that time; this is not a guarantee of future or complete security. See [milestones](docs/MILESTONES.md) for the failure diagnoses and fixes, and [official Next.js release notes](https://github.com/vercel/next.js/releases/tag/v16.4.1) for the patched advisories.
 
 These checks cover a synthetic educational workflow, not production banking validation. CI evidence artifacts expire after seven days; source, test definitions and run summaries remain inspectable. See the [reviewer walkthrough](docs/DEMO_GUIDE.md) for a reproducible demonstration, expected calculations, failure checks and honest interview talking points.
 
@@ -70,7 +70,7 @@ Previewing does not save. Saving does not switch datasets or overwrite the demo.
 
 ## Baseline evidence download
 
-Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; server-generated PDF reports remain future work.
+Choose the active portfolio, then **Download baseline report (JSON)**. The download contains the baseline summary, facility inputs, decimal-computed EL evidence, industry breakdown, source fingerprint and methodology/disclaimers. It intentionally excludes the current stress scenario. The JSON format is inspectable and machine-readable; a separate server-generated PDF export is also available below.
 
 This report is not an audit opinion, regulatory calculation or credit recommendation. Its fingerprint identifies canonical input content, not authenticity. Dataset switches cancel pending exports. See the [report contract](docs/CONTRACT.md#baseline-evidence-report-json) for schema, rounding and error behavior, and the milestone tracker for verification evidence.
 
@@ -81,7 +81,7 @@ In **Stress laboratory**, choose the PD/LGD/EAD multipliers and industry scope, 
 
 Editing any assumption or switching portfolios clears the previous result and cancels pending scenario calculations/downloads. Recalculate before exporting. The browser rejects reports whose dataset, assumptions or result totals do not match the calculation. Failed exports can be retried; they never substitute an older report.
 
-These are synthetic sensitivity assumptions, not economic forecasts or trained estimates. Scenarios are not persisted. PDF presentation and production deployment remain separate milestones. See the [scenario report contract](docs/CONTRACT.md#scenario-comparison-report-json) and the milestone tracker for verification status.
+These are synthetic sensitivity assumptions, not economic forecasts or trained estimates. Scenarios are not persisted. Production deployment remains a separate milestone. See the [scenario report contract](docs/CONTRACT.md#scenario-comparison-report-json) and the milestone tracker for verification status.
 
 
 ## Values-only Excel imports
@@ -100,3 +100,11 @@ Choose **Download baseline report (printable HTML)** for the active portfolio, o
 The document is self-contained with no scripts, external assets or network dependencies. It includes dataset identity/time, exact supplied decimal evidence, assumptions, methodology, source fingerprint and limitations. Weighted ratios/HHI are rounded for presentation. Text from the portfolio is HTML-escaped. The JSON download remains available for machine-readable evidence.
 
 These exports use the same identity and stale-response checks as JSON. They do not train a model, sign the evidence, save scenarios or confer banking/regulatory validation. Browser/print-layout verification is recorded in [milestones](docs/MILESTONES.md).
+
+## Server-generated PDF reports
+
+Choose **Download baseline report (PDF)** for the active portfolio. For a comparison, calculate a scenario first, then choose **Download scenario report (PDF)**. The API renders the document from the same calculation evidence used by the JSON report. The browser verifies the returned dataset, scenario, PDF byte count and SHA-256 before downloading; switching portfolios or editing assumptions cancels stale downloads.
+
+The A4 report includes provenance, assumptions, exact decimal evidence, repeated table headings and numbered pages. Scenario amounts are labelled INR; relative change is a fraction and affected facilities are a count. Baseline and scenario limitations are separate. The server loads the dataset once and does not write to the database, call an AI provider or fetch external assets. Exports are bounded to 1,000 facilities and 4 MiB.
+
+These portable PDFs display non-ASCII labels as explicit Unicode escapes; use JSON to retain original Unicode text. They are not digitally signed, tagged accessible documents, regulatory filings or independent validation. The hash checks transfer integrity, not trusted authorship. See the [PDF contract](docs/CONTRACT.md#server-generated-pdf-evidence) and [verification record](docs/MILESTONES.md) for tested behavior and remaining limitations.
