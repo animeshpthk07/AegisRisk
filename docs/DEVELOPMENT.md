@@ -152,3 +152,19 @@ Download baseline or scenario **printable HTML**, open the saved file in a brows
 The workflow targets Ubuntu 24.04 explicitly for all four jobs, retaining Node.js 24 and Python 3.12. The GitHub-maintained checkout, setup-node, setup-python and upload-artifact actions use their documented v7 interfaces. Checkout does not persist a token into the working tree, setup-node automatic package-manager caching is explicitly disabled, and workflow permissions remain contents: read. No test, audit, artifact retention or failure check was removed.
 
 Upgrade guidance: [checkout](https://github.com/actions/checkout), [setup-node](https://github.com/actions/setup-node), [setup-python](https://github.com/actions/setup-python), [upload-artifact](https://github.com/actions/upload-artifact). Re-check these official notes and run all jobs when changing major action or runner versions.
+
+## Verify server-generated PDF reports
+
+The PDF buttons are separate from the printable HTML workflow above. **Download baseline report (PDF)** exports the active baseline; after calculating current assumptions, **Download scenario report (PDF)** exports the comparison. Check dataset identity, exact decimal appendix values, INR/fraction/count labels, separate baseline/scenario limitations, repeated table headings and numbered page footers. Compare the evidence with the corresponding JSON report. Non-ASCII names appear as explicit Unicode escapes in the portable PDF; JSON retains original text.
+
+The same backend and full-stack test commands above cover PDF parsing, output bounds, all 1,000 facility identifiers, literal labels, loader/input guards and read-only behavior. Browser checks cover real desktop/mobile demo and saved downloads, byte count/header/digest validation, retry and stale-response cancellation. Native and Compose runs execute the same browser cases.
+
+For visual evidence, the backend CI job sets `AEGISRISK_PDF_EVIDENCE_DIR=test-results/pdf` while running tests. It retains the baseline, scenario and literal-label PDF fixtures, renders every page with Poppler at 90 dpi, and uploads `pdf-review-evidence` for seven days. The **Render synthetic PDF evidence for browser-only review** step also emits each rendered PNG as an `AEGISRISK_PDF_PREVIEW` line in the job log, so pages can be inspected through the browser without reading local files.
+
+Review every generated page after a renderer/layout change. Text extraction can verify values and identifiers but cannot prove that tables are readable or unclipped. Record the exact commit/run, pages inspected and remaining limits in [MILESTONES.md](MILESTONES.md). The 24 October checkpoint reviewed 13 fixture pages; do not present that as universal layout, tagged-PDF accessibility or regulatory certification.
+
+## Verify browser response protections
+
+The full-stack suite checks response headers on the dashboard, readiness API, PDF export, rejected method and missing page. Chromium also inspects its effective device-permission policy and checks a real fetch omits the Referer header. No device is accessed and no permission prompt is requested. Existing import, scenario, model and download cases run under the same policy.
+
+The configured CSP restricts framing, objects, base URLs and form destinations. It is not a complete script/style policy. See [SECURITY.md](SECURITY.md#browser-response-policy) for exact headers and the remaining deployment requirements. A passing native/Compose run does not verify a hosting provider or reverse proxy preserves those headers.
