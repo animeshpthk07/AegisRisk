@@ -1107,3 +1107,67 @@ def test_pdf_proxy_method_and_size_limits():
         headers={"content-type": "application/json"},
     )
     assert response.status_code == 413
+
+
+@pytest.mark.parametrize(
+    ("path", "status"),
+    [
+        ("/", 200),
+        ("/api/ready", 200),
+        ("/api/report-pdf", 200),
+        ("/api/scenario-report-pdf", 405),
+        ("/security-header-missing-page", 404),
+    ],
+    ids=["dashboard", "api", "pdf", "method-error", "not-found"],
+)
+def test_web_security_headers_cover_success_and_error_responses(path, status):
+    response = httpx.get(f"{BASE_URL}{path}", timeout=15)
+    assert response.status_code == status
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    assert response.headers["referrer-policy"] == "no-referrer"
+    assert "x-powered-by" not in response.headers
+    policy = {
+        part.strip()
+        for part in response.headers["content-security-policy"].split(";")
+    }
+    assert {
+        "base-uri 'self'", "object-src 'none'",
+        "frame-ancestors 'none'", "form-action 'self'",
+    } <= policy
+    capabilities = {
+        part.strip()
+        for part in response.headers["permissions-policy"].split(",")
+    }
+    assert {
+        "camera=()", "microphone=()", "geolocation=()", "payment=()",
+    } <= capabilities
+    if path.startswith("/api/"):
+        assert response.headers["content-type"].startswith("application/json")
+        assert "no-store" in response.headers["cache-control"]
+
+
+def test_browser_enforces_permissions_and_omits_referrer(page):
+    # Query policy state without accessing devices or requesting permission.
+    allowed = page.evaluate("""() => {
+      const policy = document.permissionsPolicy || document.featurePolicy;
+      if (!policy) throw new Error('Browser policy inspection unavailable');
+      return Object.fromEntries(
+        ['camera', 'microphone', 'geolocation', 'payment'].map(
+          feature => [feature, policy.allowsFeature(feature)]
+        )
+      );
+    }""")
+    assert allowed == {
+        "camera": False, "microphone": False,
+        "geolocation": False, "payment": False,
+    }
+    with page.expect_request(f"{BASE_URL}/api/ready") as pending:
+        status = page.evaluate(
+            "() => fetch('/api/ready').then(response => response.status)"
+        )
+    assert status == 200
+    assert "referer" not in pending.value.all_headers()
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
