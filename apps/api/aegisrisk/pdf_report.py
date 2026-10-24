@@ -88,7 +88,7 @@ def render_pdf(report):
              p("Generated (UTC): " + report["generated_at"]),
              p("Dataset: " + baseline["dataset_version"]),
              p("One-year horizon | Currency: INR | Deterministic calculations"),
-             p("Portfolio at a glance", "h2")]
+             p("Baseline portfolio at a glance" if scenario else "Portfolio at a glance", "h2")]
     story.append(table(["Measure", "Value"], [
         ["Fictional facilities", summary["facility_count"]],
         ["Exposure at default", money(calc["total_ead_decimal"])],
@@ -105,13 +105,13 @@ def render_pdf(report):
                   p(f"PD x{inputs['pd_multiplier']}; LGD x{inputs['lgd_multiplier']}; "
                     f"EAD x{inputs['ead_multiplier']}; "
                     f"scope: {inputs['industry'] or 'Whole portfolio'}"),
-                  table(["Measure", "Exact calculation (INR)"], [
-                      ["Baseline expected loss", evidence["baseline_el_decimal"]],
-                      ["Stressed expected loss", evidence["stressed_el_decimal"]],
-                      ["Change in expected loss", evidence["delta_el_decimal"]],
+                  table(["Measure", "Exact value"], [
+                      ["Baseline expected loss (INR)", evidence["baseline_el_decimal"]],
+                      ["Stressed expected loss (INR)", evidence["stressed_el_decimal"]],
+                      ["Change in expected loss (INR)", evidence["delta_el_decimal"]],
                       ["Relative change (fraction)",
                        evidence["delta_pct_decimal"] or "Not defined: zero baseline"],
-                      ["Affected facilities", evidence["affected_facility_count"]],
+                      ["Affected facilities (count)", evidence["affected_facility_count"]],
                   ], [WIDTH * .54, WIDTH * .46])]
     else:
         story.append(p("Baseline only. No stress scenario or model prediction is included."))
@@ -126,11 +126,13 @@ def render_pdf(report):
                 "to two decimals; the appendix preserves calculation strings."),
               p("Non-ASCII names are displayed as explicit Unicode escapes in this "
                 "portable PDF. Download JSON for the original Unicode text."),
-              p("Limitations", "h2")]
+              p("Baseline evidence limitations" if scenario else "Limitations", "h2")]
     notes = baseline["warnings"] + calc["notes"]
-    if scenario:
-        notes += report["scenario"]["calculation"]["notes"]
     story += [p(note) for note in dict.fromkeys(notes)]
+    if scenario:
+        story.append(p("Scenario limitations", "h2"))
+        story += [p(note) for note in
+                  dict.fromkeys(report["scenario"]["calculation"]["notes"])]
     story += [PageBreak(), p("Facility calculation evidence", "title"),
               p("All amounts are INR. PD/LGD are fractions. Rows are ordered by ID. "
                 "Identifiers and labels are literal text, never executable markup.")]
