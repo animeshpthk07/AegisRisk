@@ -773,10 +773,22 @@ def test_pdf_download_uses_same_evidence_and_does_not_write(client, scenario):
     assert report["scenario_included"] is scenario
     if scenario:
         assert "Scenario comparison" in text
+        assert "Baseline portfolio at a glance" in text
+        assert "Baseline evidence limitations" in text
+        assert "Scenario limitations" in text
+        assert "Exact calculation (INR)" not in text
+        assert "Baseline expected loss (INR)" in text
+        assert "Stressed expected loss (INR)" in text
+        assert "Change in expected loss (INR)" in text
+        assert "Relative change (fraction)" in text
+        assert "Affected facilities (count)" in text
+        assert text.index("Baseline evidence limitations") < text.index("Scenario limitations")
         assert report["scenario"]["inputs"]["pd_multiplier"] == 2
         assert report["scenario"]["stressed_el"] == 110
     else:
         assert "Baseline only." in text
+        assert "Scenario limitations" not in text
+        assert "Baseline evidence limitations" not in text
     assert client.get("/api/v1/portfolio").json() == before
 
 
