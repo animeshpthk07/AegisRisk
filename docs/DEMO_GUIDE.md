@@ -57,7 +57,11 @@ For the selected one-row saved portfolio, use PD ×2, LGD ×1, EAD ×1 and all i
 
 These are sensitivity assumptions, not an economic forecast. Download both baseline and scenario JSON reports. Confirm the dataset identity, supplied assumptions and decimal evidence agree with the calculation. The baseline report excludes the scenario; the scenario report includes its baseline comparison. A source fingerprint identifies canonical input content, not an authenticated signature.
 
-Download a printable HTML report, open it offline and inspect its methodology, evidence table and limitations. Browser Print can save it as PDF; there is no server-generated PDF endpoint. The report has no scripts or external assets. Changing a scenario control or portfolio clears the old result; recalculate before exporting again.
+Download a printable HTML report, open it offline and inspect its methodology, evidence table and limitations. It has no scripts or external assets. Browser Print remains available for that HTML document.
+
+Then choose **Download baseline report (PDF)** and **Download scenario report (PDF)** to demonstrate the separate server-generated exports. Compare the selected dataset and decimal evidence with JSON. In the scenario PDF, identify baseline EL, stressed EL, INR difference, fractional relative change and affected-facility count; read the separate baseline and scenario limitations. Inspect all pages, repeated table headings and numbered footers. The browser validates identity, byte length and SHA-256 before releasing the download. These PDFs are not digitally signed or tagged accessible; non-ASCII labels use explicit Unicode escapes, and JSON retains the original text.
+
+Changing a scenario control or portfolio clears the old result; recalculate before exporting again. If saving is disabled, demonstrate exports on the built-in portfolio and reconcile with its JSON evidence; the one-row values in the table apply only to that explicitly saved fixture.
 
 ## 6. Show a failure, not just the happy path
 
@@ -67,7 +71,7 @@ Download a printable HTML report, open it offline and inspect its methodology, e
 
 ## 7. Show independent verification
 
-[Run #23](https://github.com/animeshpthk07/AegisRisk/actions/runs/39491329995) passed backend, frontend, full-stack Chromium and PostgreSQL container-lifecycle jobs for commit `c8d6f66`. The preceding [run #22](https://github.com/animeshpthk07/AegisRisk/actions/runs/39445548042) recorded 48 browser cases passing against the real containers, checked that default saving was blocked, and verified unchanged evidence after database/application restart and repeat migration/seed. The same browser suite runs in two environments; do not describe that as twice as many distinct cases.
+[Run #34](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863) passed backend, frontend, full-stack Chromium and PostgreSQL container-lifecycle jobs for commit `cb756b6` on 24 October 2026. It recorded 141 backend tests, 19 frontend tests and 77 browser cases passing in each environment. The container job also checked default saving was blocked and verified unchanged evidence after database/application restart and repeat migration/seed. The same browser suite runs in two environments; do not describe that as twice as many distinct cases. All 13 rendered baseline, scenario and literal-label PDF fixture pages were visually reviewed in the browser.
 
 Open the actual Actions run and relevant logs rather than relying on a badge alone. Synthetic screenshots, traces and reports have seven-day retention and may have expired. The source and test definitions remain available for reproduction. Restart persistence is not a backup or disaster-recovery test, and a dependency audit is not a penetration test.
 
@@ -86,6 +90,6 @@ Open **Synthetic Model Lab** and **Load model evidence**. Inspect the 1,800/600/
 
 ## Honest completion statement
 
-“The verified slice includes synthetic CSV/XLSX validation, reviewed local snapshots, deterministic risk calculations, guarded sensitivity analysis, evidence exports and automated full-stack/container checks. An isolated synthetic training/evaluation demonstration is implemented separately; its current verification status is in the tracker. Real-world model validation, server-generated PDF, production security and hosted release remain incomplete.”
+“The verified slice includes synthetic CSV/XLSX validation, reviewed local snapshots, deterministic risk calculations, guarded sensitivity analysis, evidence exports and automated full-stack/container checks. An isolated synthetic training/evaluation demonstration is implemented separately; its current verification status is in the tracker. Baseline and scenario reports are available as JSON, printable HTML and server-generated PDF, with fixture-based visual review. Real-world model validation, production security and hosted release remain incomplete.”
 
 Use [MILESTONES.md](MILESTONES.md) as the detailed record. Do not claim regulatory approval, affiliation with a bank, real-world model accuracy, production readiness or a deployed product.
