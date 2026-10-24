@@ -126,3 +126,17 @@ POST `/api/v1/model-predict` requires `Content-Type: application/json` and a JSO
 The model is fitted once per API process from the fixed synthetic recipe and cached behind a lock. No serialized uploaded model is loaded and no external AI provider is contacted. A process restart retrains from the same recipe; floating-point results may vary across numerical-library versions.
 
 The UI loads model evidence explicitly, requires fictional-data consent before prediction, validates response identity/echoed inputs, and clears old results when an input or consent changes. Pending requests are cancelled, including A → B → A changes. Errors remain visible with a retry path. The model is not validated on real borrowers and must not be used for lending decisions.
+
+## Server-generated PDF evidence
+
+GET `/api/v1/report-pdf` and POST `/api/v1/scenario-report-pdf` accept the same optional dataset UUID and loader guards as the corresponding JSON report endpoints. The browser uses `/api/report-pdf` and `/api/scenario-report-pdf`. Scenario requests reuse the stress input validation and the proxy's 4 KiB JSON-body limit. Method allowlists remain explicit.
+
+Each request loads the selected portfolio once, calculates the existing evidence payload, and renders that same payload with ReportLab. The JSON response is `{report, pdf:{media_type:"application/pdf",byte_length,sha256,base64}}`. `report` is the full baseline or scenario envelope, not a separately fetched snapshot. Rendering does not write to the database, save a scenario, call an AI provider, or fetch remote assets. Responses retain no-store/nosniff headers. Invalid, unknown, disabled or corrupt saved datasets never fall back to the demo.
+
+Before creating a download, the browser validates report schema, dataset identity and scenario assumptions/results, then checks the PDF envelope, bounded base64 length, decoded byte count, `%PDF-` signature and SHA-256. It repeats request-version/dataset/scenario guards after asynchronous hashing so changes during verification cannot produce a stale download. Integrity checks detect transport corruption; they are not a digital signature or proof of trustworthy origin.
+
+PDFs are limited to 1,000 facilities and 4 MiB. A4 pages use repeating table headings and numbered footers. Headline amounts are rounded to two decimals; facility and scenario evidence retain supplied decimal strings. Ratios are fractions, counts are unitless, and monetary values are INR. Baseline and scenario limitations are separate sections. Baseline-only downloads exclude scenario calculations.
+
+All data-derived labels are escaped as literal text before PDF layout. No uploaded markup, remote URLs, images or scripts are interpreted. The portable font set renders non-ASCII characters as explicit Unicode escapes; JSON retains the original text. The PDF is not tagged for accessibility, a multilingual typography guarantee, a signed document, IFRS 9 ECL, regulatory capital or an audit opinion.
+
+API tests parse generated PDFs and cover evidence, byte integrity, empty/maximum-row cases, hostile labels and loader guards. Browser checks exercise real downloads, corrupt/mismatched responses, retries and stale-response cancellation. CI renders fictional baseline/scenario/literal-label PDFs to PNGs with Poppler and retains the PDF/PNG evidence for seven days. Automated text checks do not prove visual layout quality: inspect rendered pages after presentation changes. See [MILESTONES.md](MILESTONES.md) for verified run evidence and remaining limitations.
