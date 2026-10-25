@@ -1115,7 +1115,7 @@ def test_pdf_proxy_method_and_size_limits():
         ("/", 200),
         ("/api/ready", 200),
         ("/api/report-pdf", 200),
-        ("/api/scenario-report-pdf", 405),
+        ("/api/scenario-report-pdf", 404),
         ("/security-header-missing-page", 404),
     ],
     ids=["dashboard", "api", "pdf", "method-error", "not-found"],
