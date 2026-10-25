@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-24. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-25. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -16,7 +16,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
 - Baseline and scenario-comparison JSON, printable HTML and server-generated PDF evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified run #34).
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified run #43).
 
 ### How it works
 
@@ -167,6 +167,18 @@ This verifies the implemented synthetic research workflow and its tested integra
 
 Portable PDF labels use explicit Unicode escapes for non-ASCII characters; JSON retains original text. These are not tagged accessible or digitally signed PDFs. A digest is an integrity check, not trusted provenance. This checkpoint does not establish authentication, public-hosted operation, independent model validation, production security or completion of all five project phases. See [the PDF contract](CONTRACT.md#server-generated-pdf-evidence).
 
+### Browser security policy — verified 2026-10-25
+
+[Run #43](https://github.com/animeshpthk07/AegisRisk/actions/runs/40174744456) passed all four jobs for commit `2bc6949a7d29fe47d468b1457f93e3651fdfdf79`: backend 1m 17s, frontend 28s, full-stack Chromium 3m and PostgreSQL container lifecycle 4m 15s; total 4m 20s. The job logs were read through the visible browser.
+
+- Backend: **141 passed**, one warning; lint, PostgreSQL migration/read smoke and dependency audit passed. Frontend: **19 passed**, typecheck and production build passed. Both audits reported no known vulnerabilities at this checkpoint.
+- Chromium: **83 passed in 100.72s** with native test servers and **83 passed in 90.40s** against Compose/PostgreSQL. These are the same cases in two environments, not 166 distinct cases. Restart/reseed recovery preserved all recorded evidence and duplicate retries reused the snapshot.
+- The web layer now denies camera, microphone, geolocation and payment capabilities, suppresses referrers and the framework identification header, and restricts embedding, objects, base URLs and form destinations. Six additional browser cases verify policy headers on normal/error/API/PDF responses, browser capability enforcement and a real request with no referrer.
+- Run #40 exposed an incorrect new test expectation: a disallowed proxy method/resource pair returns the established 404 contract, not 405. The test expectation was corrected in `2bc6949`; application behavior and assertions were retained. Historical failed runs remain visible.
+- Seven-day evidence: [browser](https://github.com/animeshpthk07/AegisRisk/actions/runs/40174744456/artifacts/12590964462), [containers](https://github.com/animeshpthk07/AegisRisk/actions/runs/40174744456/artifacts/12591468323), [PDF fixtures](https://github.com/animeshpthk07/AegisRisk/actions/runs/40174744456/artifacts/12591238862). The 13-page visual PDF review remains the dated run #34 review above; these header-only changes do not claim a new layout review.
+
+This is a bounded browser-security improvement, not authentication, a complete script/style CSP, penetration testing or a public deployment. See [SECURITY.md](SECURITY.md) for the remaining boundaries.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
@@ -184,7 +196,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON, printable HTML and PDF downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
-| M9 Security | In progress | Local-only, synthetic-only, no API credentials |
+| M9 Security | In progress; browser policy verified (run #43) | Synthetic-only defaults, no API credentials, bounded proxy and browser policy checks; authentication, full CSP and operational controls remain incomplete |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
 | M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
 | M12 Release | Not started | |
