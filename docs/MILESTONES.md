@@ -190,7 +190,7 @@ The separate [Public demo image run #3](https://github.com/animeshpthk07/AegisRi
 - Baseline/scenario JSON, printable HTML and PDF were downloaded through the real browser. Transport-size rejection, shared rate limits (including spoofed forwarding headers), recovery, restart and fresh-container seed recovery all passed.
 - Initial demo runs #1 and #2 failed readiness: Nginx attempted to create `/var/lib/nginx/fastcgi` as a non-root user. Diagnostic run #2 showed the permission error. Commit `9b5715a` moved all remaining Nginx temporary paths into the writable temporary directory; run #3 then passed. No checks or security restrictions were removed.
 - Synthetic [demo evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275/artifacts/12649986138) expires after seven days. See [deployment settings, cost boundaries and rollout checks](DEPLOYMENT.md).
-- The proposed Render Free service has not been created. Account/public-deployment approval, actual URL, hosted smoke tests and release presentation remain pending. No API credentials or paid services were configured.
+- The owner chose to keep AegisRisk on GitHub for now on 2026-10-26. Hosting is intentionally deferred; the proposed Render Free service has not been created. No hosted URL or hosted smoke result is claimed. The deployment package remains available for a future explicit decision. No API credentials or paid services were configured.
 
 ### What you can inspect
 
@@ -211,8 +211,8 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
 | M9 Security | In progress; browser policy verified (run #43) | Synthetic-only defaults, no API credentials, bounded proxy and browser policy checks; authentication, full CSP and operational controls remain incomplete |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
-| M11 Deployment | Image package verified; hosting pending | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
-| M12 Release | Preparation in progress | Acceptance checklist and deployment guide saved; versioned release and hosted evidence pending |
+| M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
+| M12 Release | Preparation in progress | Acceptance checklist and deployment guide saved; versioned release pending; hosted evidence deferred by owner |
 | Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
 
 ## Visible workflow requested by user
