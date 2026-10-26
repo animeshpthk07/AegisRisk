@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-25. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-26. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -16,7 +16,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
 - Baseline and scenario-comparison JSON, printable HTML and server-generated PDF evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified run #43).
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified application run #61).
 
 ### How it works
 
@@ -179,6 +179,19 @@ Portable PDF labels use explicit Unicode escapes for non-ASCII characters; JSON 
 
 This is a bounded browser-security improvement, not authentication, a complete script/style CSP, penetration testing or a public deployment. See [SECURITY.md](SECURITY.md) for the remaining boundaries.
 
+### Usability and public-demo image checkpoint — 2026-10-26
+
+[Run #50](https://github.com/animeshpthk07/AegisRisk/actions/runs/40250142556), commit `aa739a956e07504919cd33560933da834ca47f5e`, passed all four application jobs with 141 backend tests, 19 frontend tests and 90 Chromium cases in each native/SQLite and Compose/PostgreSQL environment. The seven additional cases were saved in `86d72e1`: keyboard workflows at 1440/320 pixels, both-theme reflow at both widths, and reduced-motion scrolling. Four overview screenshots were visually reviewed; this is not full screen-reader/zoom/browser-engine certification.
+
+The separate [Public demo image run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275), commit `9b5715a0626f6e4a94e52fdabf7904dc117627ec`, passed with **31 reused browser cases in 26.60s** and **four demo runtime cases in 10.88s**. The same commit passed [full application run #61](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565203): backend, frontend, full-stack Chromium and PostgreSQL lifecycle. The 31 image browser cases are a subset of the existing 90, not 31 additional distinct cases.
+
+- The real non-root image was built, then exercised with a 512 MB memory limit, one CPU, 128 PIDs, all capabilities dropped and no privilege escalation. This is a test configuration, not a provider performance guarantee.
+- Startup rejects enabled persistence and a privileged public port. Actual saved-portfolio requests remain disabled while fictional CSV/XLSX previews work.
+- Baseline/scenario JSON, printable HTML and PDF were downloaded through the real browser. Transport-size rejection, shared rate limits (including spoofed forwarding headers), recovery, restart and fresh-container seed recovery all passed.
+- Initial demo runs #1 and #2 failed readiness: Nginx attempted to create `/var/lib/nginx/fastcgi` as a non-root user. Diagnostic run #2 showed the permission error. Commit `9b5715a` moved all remaining Nginx temporary paths into the writable temporary directory; run #3 then passed. No checks or security restrictions were removed.
+- Synthetic [demo evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275/artifacts/12649986138) expires after seven days. See [deployment settings, cost boundaries and rollout checks](DEPLOYMENT.md).
+- The proposed Render Free service has not been created. Account/public-deployment approval, actual URL, hosted smoke tests and release presentation remain pending. No API credentials or paid services were configured.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
@@ -198,8 +211,8 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
 | M9 Security | In progress; browser policy verified (run #43) | Synthetic-only defaults, no API credentials, bounded proxy and browser policy checks; authentication, full CSP and operational controls remain incomplete |
 | M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
-| M11 Deployment | Not complete | Public source published; no hosted application verified or paid service purchased |
-| M12 Release | Not started | |
+| M11 Deployment | Image package verified; hosting pending | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
+| M12 Release | Preparation in progress | Acceptance checklist and deployment guide saved; versioned release and hosted evidence pending |
 | Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
 
 ## Visible workflow requested by user
