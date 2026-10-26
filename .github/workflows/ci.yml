@@ -71,10 +71,15 @@ jobs:
       - run: pnpm build
       - run: pnpm audit --prod
   browser:
-    name: Full-stack browser checks
+    name: Full-stack browser checks (${{ matrix.browser }})
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
     env:
+      AEGISRISK_BROWSER: ${{ matrix.browser }}
       DATABASE_URL: sqlite:////tmp/aegisrisk-browser.db
       API_BASE_URL: http://127.0.0.1:8000
       NEXT_TELEMETRY_DISABLED: '1'
@@ -93,7 +98,7 @@ jobs:
       - run: npm install -g pnpm@11.25.0
       - run: pnpm install --frozen-lockfile
       - run: pip install -e './apps/api[dev]' playwright==1.64.0
-      - run: python -m playwright install --with-deps chromium
+      - run: python -m playwright install --with-deps "${{ matrix.browser }}"
       - run: ruff check --select E,F,I tests/browser
       - run: pnpm build
       - name: Prepare isolated fictional database
@@ -127,7 +132,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: browser-check-evidence
+          name: browser-check-evidence-${{ matrix.browser }}
           path: test-results/
           retention-days: 7
           if-no-files-found: warn
