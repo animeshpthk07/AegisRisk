@@ -60,6 +60,7 @@ jobs:
         run: |
           mkdir -p test-results
           docker logs aegisrisk-demo-ci > test-results/demo-container.log 2>&1 || true
+          tail -n 120 test-results/demo-container.log
           docker stats --no-stream aegisrisk-demo-ci > test-results/demo-resources.txt || true
           docker inspect aegisrisk-demo-ci > test-results/demo-container.json || true
       - uses: actions/upload-artifact@v7
