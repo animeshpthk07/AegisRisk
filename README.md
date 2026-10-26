@@ -24,15 +24,21 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), [API contract](docs/CONTRACT.md), and [release readiness](docs/RELEASE_READINESS.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
-## Latest verified checkpoint — 25 October 2026
+## Verified usability checkpoint — 26 October 2026
 
-[Verification run #43](https://github.com/animeshpthk07/AegisRisk/actions/runs/40174744456) passed all four jobs for commit `2bc6949`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. It recorded **141 backend tests**, **19 frontend unit tests**, and **83 browser cases in each of the native and real Compose/PostgreSQL environments**. Database/application restart and repeat migrations/seed preserved the recorded evidence and duplicate-save behavior.
+[Verification run #50](https://github.com/animeshpthk07/AegisRisk/actions/runs/40250142556) passed all four jobs for commit `aa739a9`: backend, frontend, full-stack Chromium and PostgreSQL container lifecycle. It recorded **141 backend tests**, **19 frontend unit tests**, and **90 browser cases in each of the native and real Compose/PostgreSQL environments**. Database/application restart and repeat migrations/seed preserved the recorded evidence and duplicate-save behavior.
+
+Seven added browser cases verify keyboard search/scenario/download workflows at 1440 and 320 pixels, both-theme reflow and reduced-motion scrolling. Four overview screenshots were reviewed. Screen-reader, browser zoom and Firefox/WebKit checks remain pending. See [the detailed evidence](docs/RELEASE_READINESS.md).
 
 This checkpoint also verifies browser capability restrictions, referrer suppression and response policies across normal and error paths. The full script/style CSP and shared-user authentication remain incomplete. It includes server-generated baseline/scenario PDFs, the isolated synthetic Model Lab and the Next.js **16.4.1** security patch. All 13 rendered pages of the baseline, scenario and literal-label PDF fixtures were visually reviewed in the browser for run #34 on 24 October: tables, repeated headings, page footers, units and separate baseline/scenario limitations were readable without clipping or overlap. This review covers those fixtures, not every possible uploaded label or layout. Frozen-lockfile installation, type checking, production builds and both dependency audits passed. Audits found no known vulnerabilities at that time; this is not a guarantee of future or complete security. See [milestones](docs/MILESTONES.md) for the failure diagnoses and fixes, and [official Next.js release notes](https://github.com/vercel/next.js/releases/tag/v16.4.1) for the patched advisories.
 
 These checks cover a synthetic educational workflow, not production banking validation. CI evidence artifacts expire after seven days; source, test definitions and run summaries remain inspectable. See the [reviewer walkthrough](docs/DEMO_GUIDE.md) for a reproducible demonstration, expected calculations, failure checks and honest interview talking points.
 
 The historical checkpoints below describe when individual features were introduced; they are not separate claims that the full product is complete.
+
+## Public demo preparation
+
+The [deployment package](docs/DEPLOYMENT.md) proposes a Render Free service with saving disabled, private internal servers, request limits and manual deployments. The separate **Public demo image verification** workflow must pass before hosting. The initial image run failed at readiness; corrections and verification are in progress. No public URL, hosting account, paid service or complete authenticated product is claimed.
 
 ## Historical foundation checkpoint
 
