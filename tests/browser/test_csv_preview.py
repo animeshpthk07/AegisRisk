@@ -1171,3 +1171,134 @@ def test_browser_enforces_permissions_and_omits_referrer(page):
     expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
         "40 fictional facilities"
     )
+
+
+
+def tab_to(page, target):
+    """Reach a real control through sequential keyboard navigation only."""
+    expect(target).to_be_visible()
+    for _ in range(80):
+        if target.evaluate("node => node === document.activeElement"):
+            return
+        page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+
+
+def replace_focused_text(page, value):
+    page.keyboard.press("Control+A")
+    page.keyboard.type(value)
+
+
+@pytest.mark.parametrize("width", [1440, 320])
+def test_keyboard_entry_search_scroll_scenario_and_download(page, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(BASE_URL)
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
+    page.keyboard.press("Tab")
+    skip = page.get_by_role("link", name="Skip to dashboard", exact=True)
+    expect(skip).to_be_focused()
+    expect(skip).to_be_in_viewport()
+    page.keyboard.press("Enter")
+    expect(page.get_by_role("main", name="Risk workbench")).to_be_focused()
+    page.keyboard.press("Tab")
+    theme = page.get_by_role("button", name="Toggle light and dark theme")
+    expect(theme).to_be_focused()
+    for pressed in ("true", "false"):
+        page.keyboard.press("Space")
+        expect(theme).to_have_attribute("aria-pressed", pressed)
+        expect(theme).to_have_css("outline-style", "solid")
+        expect(theme).to_have_css("outline-width", "2px")
+    search = page.get_by_role("textbox", name="Search facilities")
+    tab_to(page, search)
+    page.keyboard.type("SYN-001")
+    expect(page.locator("#exposures").get_by_role("status")).to_contain_text(
+        "Showing 1 of 40 facilities"
+    )
+    page.keyboard.press("Control+A")
+    page.keyboard.press("Backspace")
+    expect(page.locator("#exposures").get_by_role("status")).to_contain_text(
+        "Showing 40 of 40 facilities"
+    )
+    table = page.get_by_role("region", name="Facility metrics table", exact=True)
+    tab_to(page, table)
+    expect(table).to_have_css("outline-width", "2px")
+    page.keyboard.press("ArrowDown")
+    page.wait_for_function(
+        "document.querySelector('[aria-label=\"Facility metrics table\"]')"
+        ".scrollTop > 0"
+    )
+    if width == 320:
+        page.keyboard.press("ArrowRight")
+        page.wait_for_function(
+            "document.querySelector('[aria-label=\"Facility metrics table\"]')"
+            ".scrollLeft > 0"
+        )
+    tab_to(page, page.get_by_label("PD multiplier", exact=True))
+    replace_focused_text(page, "2")
+    page.keyboard.press("Tab")
+    expect(page.get_by_label("LGD multiplier", exact=True)).to_be_focused()
+    replace_focused_text(page, "1")
+    page.keyboard.press("Tab")
+    expect(page.get_by_label("EAD multiplier", exact=True)).to_be_focused()
+    replace_focused_text(page, "1")
+    page.keyboard.press("Tab")
+    expect(page.get_by_label("Scenario scope", exact=True)).to_be_focused()
+    page.keyboard.press("Tab")
+    calculate = page.get_by_role("button", name="Calculate scenario →", exact=True)
+    expect(calculate).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator(".scenario-result")).to_contain_text(
+        "Calculated assumptions: PD ×2, LGD ×1, EAD ×1"
+    )
+    download_button = page.get_by_role(
+        "button", name="Download scenario report (JSON)", exact=True
+    )
+    tab_to(page, download_button)
+    with page.expect_download() as pending:
+        page.keyboard.press("Enter")
+    downloaded = pending.value
+    assert downloaded.suggested_filename == "aegisrisk-scenario-demo.json"
+    report = json.loads(Path(downloaded.path()).read_text())
+    assert report["dataset_id"] is None
+    assert report["scenario"]["inputs"] == {
+        "pd_multiplier": 2, "lgd_multiplier": 1,
+        "ead_multiplier": 1, "industry": None,
+    }
+
+
+@pytest.mark.parametrize("width", [1440, 320])
+@pytest.mark.parametrize("light", [False, True], ids=["dark", "light"])
+def test_dashboard_reflows_without_document_horizontal_scroll(page, width, light):
+    page.set_viewport_size({"width": width, "height": 900})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(BASE_URL)
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
+    if light:
+        page.get_by_role("button", name="Toggle light and dark theme").click()
+    page.get_by_role("button", name="Use fictional example").click()
+    page.get_by_role("checkbox", name=CONSENT).check()
+    assert submit(page).status == 200
+    expect(page.locator("#import-preview")).to_contain_text("Validation passed")
+    dimensions = page.evaluate("""() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth
+    })""")
+    assert dimensions["content"] <= dimensions["viewport"] + 1, dimensions
+    if width == 320:
+        region = page.get_by_role("region", name="Facility metrics table")
+        assert region.evaluate("node => node.scrollWidth > node.clientWidth")
+    page.locator("#overview").scroll_into_view_if_needed()
+    theme = "light" if light else "dark"
+    page.screenshot(
+        path=str(ARTIFACTS / f"ui-review-{width}-{theme}.png"), full_page=False
+    )
+
+
+def test_reduced_motion_disables_animated_document_scrolling(page):
+    page.emulate_media(reduced_motion="reduce")
+    expect(page.locator("html")).to_have_css("scroll-behavior", "auto")
