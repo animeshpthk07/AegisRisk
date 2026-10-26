@@ -4,7 +4,7 @@ Banking risk intelligence and explainable credit analytics. Educational portfoli
 
 **Mathematics calculates. Models estimate. AI explains. Humans decide.**
 
-Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified status. External AI is disabled by decision; no API key is needed. The foundation source is published on [GitHub](https://github.com/animeshpthk07/AegisRisk) under the MIT license. A public hosted application is not yet verified.
+Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified status. External AI is disabled by decision; no API key is needed. The foundation source is published on [GitHub](https://github.com/animeshpthk07/AegisRisk) under the MIT license. Hosting is deferred by owner decision; this deliverable stays on GitHub for now.
 
 ## Current foundation scope
 
@@ -38,7 +38,9 @@ The historical checkpoints below describe when individual features were introduc
 
 ## Public demo preparation
 
-The [deployment package](docs/DEPLOYMENT.md) proposes a Render Free service with saving disabled, private internal servers, request limits and manual deployments. The separate **Public demo image verification** workflow must pass before hosting. The initial image run failed at readiness; corrections and verification are in progress. No public URL, hosting account, paid service or complete authenticated product is claimed.
+The [deployment package](docs/DEPLOYMENT.md) keeps saving disabled, application servers private, requests bounded and deployment manual. [Public demo image run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275) and [application run #61](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565203) both passed for `9b5715a0626f6e4a94e52fdabf7904dc117627ec`. The image checks include 31 reused browser cases, four runtime cases, startup guards and restart/fresh-container recovery. A non-root Nginx temporary-directory error in the earlier runs was corrected without weakening checks.
+
+**The owner chose to keep AegisRisk on GitHub on 26 October 2026.** The Render Free proposal is retained for a future decision; no hosting service was created and no live URL is claimed. The verified image remains an educational fictional-data demo, not the complete authenticated product.
 
 ## Historical foundation checkpoint
 
