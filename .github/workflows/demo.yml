@@ -44,7 +44,7 @@ jobs:
       - name: Verify previews, model and keyboard workflows
         run: >-
           python -m pytest tests/browser -q
-          -k 'example_requires_consent or uploaded_utf8_csv or invalid_probability or file_picker_rejects or proxy_enforces_acknowledgement or backend_error_is_visible or xlsx_rejection_is_visible or xlsx_proxy_preserves or model_lab_metrics or model_proxy_rejects or keyboard_entry or dashboard_reflows or reduced_motion or web_security_headers or browser_enforces_permissions'
+          -k 'example_requires_consent or uploaded_utf8_csv or invalid_probability or file_picker_rejects or proxy_enforces_acknowledgement or backend_error_is_visible or xlsx_rejection_is_visible or xlsx_proxy_preserves or model_lab_metrics or model_proxy_rejects or keyboard_entry or dashboard_reflows or reduced_motion or web_security_headers or browser_enforces_permissions or browser_omits_referrer'
           --junitxml=test-results/demo-browser.xml
       - name: Verify real downloads, bounded traffic and recovery
         run: python -m pytest tests/demo -q --junitxml=test-results/demo-runtime.xml
