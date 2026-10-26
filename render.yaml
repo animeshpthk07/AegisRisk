@@ -1,0 +1,21 @@
+# Fictional public demo only. Applying this file creates a public web service.
+# Review docs/DEPLOYMENT.md and approve the account/billing conditions first.
+services:
+  - type: web
+    name: aegisrisk-demo
+    runtime: docker
+    repo: https://github.com/animeshpthk07/AegisRisk
+    branch: main
+    region: frankfurt
+    plan: free
+    dockerfilePath: ./deploy/demo/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: SYNTHETIC_IMPORTS_ENABLED
+        value: "false"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
