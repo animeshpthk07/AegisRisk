@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-26. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-10-27. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -16,7 +16,7 @@ The frontend-to-backend-to-database flow was verified locally. The foundation so
 - Opt-in reviewed CSV / XLSX snapshots with immutable storage, dataset selection and duplicate-file reuse; saving remains disabled by default.
 - Baseline and scenario-comparison JSON, printable HTML and server-generated PDF evidence reports with dataset identity, Decimal computation evidence and canonical input fingerprints.
 - Deterministic narrative. No external AI provider or API credentials.
-- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified application run #61).
+- PostgreSQL Compose and CI definitions. GitHub CI passed the PostgreSQL migration/read smoke and full Compose browser/restart lifecycle (latest verified application run #71).
 
 ### How it works
 
@@ -192,6 +192,14 @@ The separate [Public demo image run #3](https://github.com/animeshpthk07/AegisRi
 - Synthetic [demo evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275/artifacts/12649986138) expires after seven days. See [deployment settings, cost boundaries and rollout checks](DEPLOYMENT.md).
 - The owner chose to keep AegisRisk on GitHub for now on 2026-10-26. Hosting is intentionally deferred; the proposed Render Free service has not been created. No hosted URL or hosted smoke result is claimed. The deployment package remains available for a future explicit decision. No API credentials or paid services were configured.
 
+### Three-engine browser verification — confirmed 2026-10-27
+
+[Application run #70](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011488), commit `6611ec20fc941888419ac501c482d7d3054459d5`, passed all six jobs: backend, frontend, Chromium, Firefox, WebKit and PostgreSQL container lifecycle. [Run #71](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371380326) also passed after the reproduction-guide update. The matrix runs the existing real application workflows in separate runners with engine-specific artifacts. Chromium passed 91 cases; Firefox passed 90 with one explicit skip for the Chromium-only permissions-policy inspection. WebKit passed the same 90 cases with that explicit skip in the preceding [run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876). Header and referrer checks remain enabled on every engine. These repeat the same workflows, not hundreds of distinct cases.
+
+[Demo image run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011459) passed for `6611ec2`: 32 selected browser cases, four runtime cases, startup restrictions and restart/fresh-container recovery. Hosting remains deferred by owner decision. Linux Playwright WebKit is not branded Safari or a physical iOS test; screen-reader, browser zoom and physical-device verification remain incomplete.
+
+The first attempt of documentation-only run #72 reached the 15-minute job limit while downloading Firefox system dependencies from the Ubuntu mirror. The Firefox application tests had not started; the other jobs passed. The cancelled attempt remains in the history and is not relabelled successful. A focused retry was requested on 2026-10-27; inspect its final result before claiming that attempt passed.
+
 ### What you can inspect
 
 `apps/web/app/page.tsx` contains the dashboard. `apps/api/aegisrisk/main.py` exposes API endpoints. `risk.py` contains the formulas. `docs/ARCHITECTURE.md` explains the system, `docs/DEVELOPMENT.md` shows how to run it, and `docs/SECURITY.md` records limits.
@@ -210,7 +218,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
 | M9 Security | In progress; browser policy verified (run #43) | Synthetic-only defaults, no API credentials, bounded proxy and browser policy checks; authentication, full CSP and operational controls remain incomplete |
-| M10 Full verification | Partial | Backend/frontend/CSV/snapshot/report Chromium CI passed; Compose browser/restart lifecycle also passed; broader E2E, accessibility and security verification pending |
+| M10 Full verification | Partial | Backend/frontend and real workflows pass in Chromium, Firefox and WebKit; Compose browser/restart lifecycle passes; screen-reader, zoom, physical-device and broader security verification remain pending |
 | M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
 | M12 Release | Preparation in progress | Acceptance checklist and deployment guide saved; versioned release pending; hosted evidence deferred by owner |
 | Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
