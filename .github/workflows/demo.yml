@@ -1,0 +1,74 @@
+name: Public demo image verification
+on:
+  push:
+    paths: ['apps/**', 'deploy/demo/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/demo.yml']
+  pull_request:
+    paths: ['apps/**', 'deploy/demo/**', 'tests/**', 'package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.github/workflows/demo.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  demo:
+    name: Bounded fictional demo container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      AEGISRISK_CONTAINER_TEST: fictional-only
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -e './apps/api[dev]' playwright==1.64.0
+      - run: python -m playwright install --with-deps chromium
+      - run: ruff check --select E,F,I tests/demo
+      - run: bash -n deploy/demo/start.sh
+      - name: Build public demo image
+        run: docker build --pull -f deploy/demo/Dockerfile -t aegisrisk-demo-ci .
+      - name: Reject unsafe startup configuration
+        run: |
+          set +e
+          timeout 20s docker run --rm -e SYNTHETIC_IMPORTS_ENABLED=true aegisrisk-demo-ci
+          save_status=$?
+          timeout 20s docker run --rm -e PORT=80 aegisrisk-demo-ci
+          port_status=$?
+          set -e
+          test "$save_status" = 64
+          test "$port_status" = 64
+      - name: Start under the free-plan memory budget
+        run: |
+          docker run -d --name aegisrisk-demo-ci --memory=512m --memory-swap=512m --cpus=1 --pids-limit=128 --cap-drop=ALL --security-opt=no-new-privileges -p 127.0.0.1:3000:10000 aegisrisk-demo-ci
+          python tests/containers/check_lifecycle.py defaults
+      - name: Verify previews, model and keyboard workflows
+        run: >-
+          python -m pytest tests/browser -q
+          -k 'example_requires_consent or uploaded_utf8_csv or invalid_probability or file_picker_rejects or proxy_enforces_acknowledgement or backend_error_is_visible or xlsx_rejection_is_visible or xlsx_proxy_preserves or model_lab_metrics or model_proxy_rejects or keyboard_entry or dashboard_reflows or reduced_motion or web_security_headers or browser_enforces_permissions'
+          --junitxml=test-results/demo-browser.xml
+      - name: Verify real downloads, bounded traffic and recovery
+        run: python -m pytest tests/demo -q --junitxml=test-results/demo-runtime.xml
+      - name: Verify restart and fresh-container recovery
+        run: |
+          docker restart aegisrisk-demo-ci
+          python tests/containers/check_lifecycle.py defaults
+          docker rm -f aegisrisk-demo-ci
+          docker run -d --name aegisrisk-demo-ci --memory=512m --memory-swap=512m --cpus=1 --pids-limit=128 --cap-drop=ALL --security-opt=no-new-privileges -p 127.0.0.1:3000:10000 aegisrisk-demo-ci
+          python tests/containers/check_lifecycle.py defaults
+      - name: Collect synthetic demo diagnostics
+        if: always()
+        run: |
+          mkdir -p test-results
+          docker logs aegisrisk-demo-ci > test-results/demo-container.log 2>&1 || true
+          docker stats --no-stream aegisrisk-demo-ci > test-results/demo-resources.txt || true
+          docker inspect aegisrisk-demo-ci > test-results/demo-container.json || true
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: public-demo-evidence
+          path: test-results/
+          retention-days: 7
+          if-no-files-found: warn
+      - name: Remove only the disposable demo container
+        if: always()
+        run: docker rm -f aegisrisk-demo-ci || true
