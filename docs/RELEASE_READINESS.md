@@ -6,17 +6,17 @@ Updated 2026-10-26. This document defines the evidence needed for a release; it 
 
 AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The verified application and demo-image candidate is commit `9b5715a0626f6e4a94e52fdabf7904dc117627ec`: [application run #61](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565203) and [public demo image run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275) both passed.
 
-On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. A public repository and passing CI do not establish an authenticated hosted service. Shared-user authentication and operational controls remain unfinished.
+On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Shared-user authentication and operational controls remain unfinished.
 
 ## Acceptance evidence
 
 | Area | Evidence required | Current status |
 | --- | --- | --- |
-| Reproducible source | Frozen dependencies, lint, tests, production build and dependency audits pass for the exact release commit | Application run #61 and demo image run #3 passed for the same candidate; verify again after application changes |
+| Reproducible source | Frozen dependencies, lint, tests, production build and dependency audits pass for the exact release commit | Application run #69 passed all six jobs; demo run #5 passed after adding the separate referrer assertion. Exact commits are recorded below; verify the final release commit again after application changes |
 | Calculations and reports | Exact totals, dataset identity, scope/caps, errors, stale responses and real downloads tested | Implemented cases pass; see [CONTRACT.md](CONTRACT.md) |
 | PDF layout | Rendered fixture pages reviewed for readable text, pagination and tables | All 13 pages reviewed for run #34 on 2026-10-24; review again after layout changes |
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
-| Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. Screen-reader, zoom and Firefox/WebKit validation remain pending |
+| Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. The same workflows also pass in Firefox and WebKit; screen-reader, browser zoom and physical-device validation remain pending |
 | Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Not complete; basic browser policy is verified, not a complete security review |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
@@ -29,6 +29,14 @@ Run #50 recorded 141 backend tests (one dependency deprecation warning), 19 fron
 The seven additional cases are saved in commit `86d72e1`; run #49 passed before the evidence-output change. Run #50 verifies the same application plus bounded UI-preview output (`aa739a9`). Keyboard checks use actual Tab/Enter/Space/arrow input through skip navigation, theme switching with visible focus, search, table scrolling, scenario calculation and a downloaded JSON report. Reflow checks retain internal table scrolling while rejecting document-wide horizontal overflow at 320 and 1440 CSS pixels in both themes. The reduced-motion preference disables animated document scrolling.
 
 Four viewport captures from run #50 were inspected through its browser log: `ui-review-{1440,320}-{dark,light}.png`. The reviewed overview has readable text and controls with no overlap or page-wide clipping. This review covers those captured viewports, not every screen, screen-reader behaviour, browser zoom or all browser engines. The [browser evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40250142556/artifacts/12620203929) and [container evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40250142556/artifacts/12620034892) expire after seven days. CI captures do not establish a hosted deployment.
+
+## Browser compatibility checkpoint — 2026-10-26
+
+[Application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876), commit `deeb228109af43552b728e3be63140424744d377`, passed backend, frontend, PostgreSQL lifecycle and the full browser workflow on Chromium, Firefox and WebKit. The fixtures now select an explicitly allowed engine through `AEGISRISK_BROWSER`; each matrix job has an isolated runner and evidence artifact. Referrer behavior is asserted separately on every engine. The Chromium permissions-policy inspection is preserved and explicitly skipped on Firefox/WebKit because its inspection API is Chromium-specific; response-header checks still run in every job.
+
+This verifies the covered preview, snapshot, report, model, keyboard, reflow, reduced-motion and error/recovery workflows in Playwright's Linux browser builds. It is not branded Safari, physical iOS, browser zoom, screen-reader or complete accessibility certification. The four visually inspected overview captures above remain the dated Chromium review; automated captures in other engines are not relabelled as a new manual visual review.
+
+[Demo image run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011459), commit `6611ec20fc941888419ac501c482d7d3054459d5`, also passed: 32 selected browser cases and four demo runtime cases, with startup restrictions, restart and fresh-container recovery. The selected cases are reused coverage, not 32 new distinct tests. The intervening change retains the separate referrer test in the demo selection; it does not change application behavior. Hosting remains deferred.
 
 ## Verified demo image — 2026-10-26
 
