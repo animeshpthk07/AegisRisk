@@ -1,6 +1,7 @@
-"""Real Chromium -> Next.js proxy -> FastAPI checks on fictional data only."""
+"""Real browser -> Next.js proxy -> FastAPI checks on fictional data only."""
 
 import json
+import os
 import re
 import time
 from hashlib import sha256
@@ -13,6 +14,7 @@ import pytest
 from openpyxl import Workbook
 from playwright.sync_api import expect, sync_playwright
 
+BROWSER_ENGINE = os.environ.get("AEGISRISK_BROWSER", "chromium")
 BASE_URL = "http://127.0.0.1:3000"
 ARTIFACTS = Path("test-results")
 HEADER = "id,borrower,industry,geography,rating,pd,lgd,ead,currency,horizon\n"
@@ -40,8 +42,10 @@ def running_app():
 
 @pytest.fixture(scope="session")
 def browser(running_app):
+    if BROWSER_ENGINE not in {"chromium", "firefox", "webkit"}:
+        pytest.fail(f"Unsupported AEGISRISK_BROWSER: {BROWSER_ENGINE}")
     with sync_playwright() as playwright:
-        instance = playwright.chromium.launch()
+        instance = getattr(playwright, BROWSER_ENGINE).launch()
         yield instance
         instance.close()
 
@@ -1147,7 +1151,12 @@ def test_web_security_headers_cover_success_and_error_responses(path, status):
         assert "no-store" in response.headers["cache-control"]
 
 
-def test_browser_enforces_permissions_and_omits_referrer(page):
+@pytest.mark.skipif(
+    BROWSER_ENGINE != "chromium",
+    reason="Permissions Policy inspection API is Chromium-specific; "
+    "headers and referrer behavior are checked separately on every engine",
+)
+def test_browser_enforces_permissions_policy(page):
     # Query policy state without accessing devices or requesting permission.
     allowed = page.evaluate("""() => {
       const policy = document.permissionsPolicy || document.featurePolicy;
@@ -1162,6 +1171,9 @@ def test_browser_enforces_permissions_and_omits_referrer(page):
         "camera": False, "microphone": False,
         "geolocation": False, "payment": False,
     }
+
+
+def test_browser_omits_referrer(page):
     with page.expect_request(f"{BASE_URL}/api/ready") as pending:
         status = page.evaluate(
             "() => fetch('/api/ready').then(response => response.status)"
