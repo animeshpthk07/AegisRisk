@@ -46,12 +46,14 @@ def test_real_browser_downloads_all_report_formats(kind):
                 page.get_by_label("PD multiplier", exact=True).fill("2")
                 page.get_by_label("LGD multiplier", exact=True).fill("1")
                 page.get_by_label("EAD multiplier", exact=True).fill("1")
-                page.get_by_role("button", name="Calculate scenario →", exact=True).click()
+                page.get_by_role(
+                    "button", name="Calculate scenario →", exact=True
+                ).click()
                 expect(page.locator(".scenario-result")).to_be_visible()
             for fmt in ("JSON", "HTML", "PDF"):
                 # HTML is labelled printable in the product.
                 label = (f"Download {kind} report ({fmt})" if fmt != "HTML"
-                         else f"Download {kind} report (HTML)")
+                         else f"Download {kind} report (printable HTML)")
                 with page.expect_download() as pending:
                     page.get_by_role("button", name=label, exact=True).click()
                 download = pending.value
@@ -61,7 +63,8 @@ def test_real_browser_downloads_all_report_formats(kind):
                     report = json.loads(content)
                     assert report["dataset_id"] is None
                     assert report["scenario_included"] is (kind == "scenario")
-                    summary = report["baseline"]["summary"] if kind == "scenario" else report["summary"]
+                    summary = (report["baseline"]["summary"]
+                               if kind == "scenario" else report["summary"])
                     assert summary["facility_count"] == 40
                     assert summary["total_expected_loss"] == 2769125
                     if kind == "scenario":
@@ -98,7 +101,10 @@ def test_shared_rate_budget_rejects_bursts_and_recovers():
     with httpx.Client(base_url=URL, timeout=10) as client:
         def request(index):
             # A spoofed forwarding header must not create a new quota bucket.
-            return client.get("/api/portfolio", headers={"X-Forwarded-For": f"192.0.2.{index}"})
+            return client.get(
+                "/api/portfolio",
+                headers={"X-Forwarded-For": f"192.0.2.{index}"},
+            )
         with ThreadPoolExecutor(max_workers=16) as pool:
             responses = list(pool.map(request, range(100)))
         limited = [r for r in responses if r.status_code == 429]
