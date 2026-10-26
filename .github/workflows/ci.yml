@@ -110,6 +110,19 @@ jobs:
           web_pid=$!
           trap 'kill "$api_pid" "$web_pid" 2>/dev/null || true' EXIT
           python -m pytest tests/browser -q --junitxml=test-results/browser.xml
+      - name: Show synthetic UI captures for browser-only review
+        if: always()
+        run: |
+          python - <<'PY'
+          from base64 import b64encode
+          from pathlib import Path
+          for width in (1440, 320):
+              for theme in ("dark", "light"):
+                  image = Path(f"test-results/ui-review-{width}-{theme}.png")
+                  if image.is_file() and image.stat().st_size <= 1_000_000:
+                      encoded = b64encode(image.read_bytes()).decode("ascii")
+                      print(f"AEGISRISK_UI_PREVIEW {image.name} data:image/png;base64,{encoded}")
+          PY
       - name: Retain synthetic-only test evidence
         if: always()
         uses: actions/upload-artifact@v7
