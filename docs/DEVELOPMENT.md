@@ -57,7 +57,7 @@ Use the virtual environment's Python. GitHub Actions is configured in the public
 
 ## Full-stack browser verification
 
-The GitHub Actions **Full-stack browser checks** job builds the production Next.js app, migrates and seeds an isolated SQLite database with 40 fictional facilities, starts the real FastAPI and web servers on loopback, and runs `tests/browser/test_csv_preview.py` in Chromium. This is separate from the PostgreSQL migration smoke and backend unit tests.
+The GitHub Actions **Full-stack browser checks** matrix builds the production Next.js app, migrates and seeds an isolated SQLite database with 40 fictional facilities, starts the real FastAPI and web servers on loopback, and runs `tests/browser/test_csv_preview.py` separately in Chromium, Firefox and WebKit. Each engine uses its own runner, database and evidence artifact; a failure in one engine does not cancel the others. This is separate from the PostgreSQL migration smoke and backend unit tests.
 
 Covered flows: consent gating, built-in example at desktop/mobile viewport widths, CSV download, UTF-8 BOM upload, exact EAD/EL results, invalid probability without partial totals, unsupported/empty/oversized file rejection, proxy acknowledgement/content-type/size enforcement, and recovery after an intentionally simulated 503 response. Portfolio summary totals are compared before and after each test. The outage, disabled-capability and delayed-response tests deliberately inject responses. Ordinary preview and snapshot round-trip requests use the actual proxy/API. Snapshot checks cover reviewed saving, duplicate-byte reuse, reopen after reload, confirmation invalidation and switching away from an in-flight scenario. Report checks download and parse actual JSON for the demo and a saved snapshot; simulated failures verify no download on outage or mismatched identity. Delayed responses cover A → B and A → B → A selection changes. Catalog refresh tests preserve a selected snapshot outside the current listing page.
 
@@ -65,7 +65,7 @@ To reproduce against a fresh, fictional-only local database, install the test de
 
 ```text
 python -m pip install playwright==1.64.0
-python -m playwright install chromium
+python -m playwright install chromium firefox webkit
 ```
 
 For this isolated test run, set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process, then start the migrated/seeded API as above. Build the web application with `pnpm build`, then start it with `pnpm --dir apps/web exec next start --hostname 127.0.0.1 --port 3000`. With both services running, from the repository root:
@@ -75,9 +75,11 @@ python -m ruff check --select E,F,I tests/browser
 python -m pytest tests/browser -q --junitxml=test-results/browser.xml
 ```
 
-The tests expect the untouched 40-record fictional seed. Do not point them at customer data or a production service. The CI job installs Linux browser dependencies with `python -m playwright install --with-deps chromium`. Screenshots, traces, JUnit results and server logs are kept in ignored `test-results/`; the CI artifact `browser-check-evidence` expires after seven days. Traces contain request data, so retain synthetic inputs only. Check the actual run result before calling the checkpoint verified.
+The fixture defaults to Chromium. To choose another installed engine, set `AEGISRISK_BROWSER=firefox` or `AEGISRISK_BROWSER=webkit` in the test process environment. PowerShell: `$env:AEGISRISK_BROWSER = 'firefox'`; Unix: `AEGISRISK_BROWSER=firefox python -m pytest tests/browser -q`. The only accepted values are `chromium`, `firefox` and `webkit`; invalid values fail instead of silently falling back.
 
-This does not certify full accessibility, Firefox/WebKit compatibility, load capacity, production upload security, multi-user storage or hosted deployment.
+The tests expect the untouched 40-record fictional seed. Do not point them at customer data or a production service. The CI job installs Linux browser dependencies for the selected engine with `python -m playwright install --with-deps <engine>`. Screenshots, traces, JUnit results and server logs are kept in ignored `test-results/`; each CI artifact `browser-check-evidence-<engine>` expires after seven days. Traces contain request data, so retain synthetic inputs only. Check the actual run result before calling the checkpoint verified.
+
+The matrix configuration alone does not establish compatibility; inspect the actual engine jobs before claiming support. Playwright uses patched browser builds, and Linux WebKit is not branded Safari or a physical iOS device. This does not certify full accessibility, browser zoom, load capacity, production upload security, multi-user storage or hosted deployment.
 
 ## Learn the foundation
 
@@ -149,7 +151,7 @@ Download baseline or scenario **printable HTML**, open the saved file in a brows
 
 ## CI runtime maintenance
 
-The workflow targets Ubuntu 24.04 explicitly for all four jobs, retaining Node.js 24 and Python 3.12. The GitHub-maintained checkout, setup-node, setup-python and upload-artifact actions use their documented v7 interfaces. Checkout does not persist a token into the working tree, setup-node automatic package-manager caching is explicitly disabled, and workflow permissions remain contents: read. No test, audit, artifact retention or failure check was removed.
+The workflow targets Ubuntu 24.04 explicitly for all jobs, retaining Node.js 24 and Python 3.12. The GitHub-maintained checkout, setup-node, setup-python and upload-artifact actions use their documented v7 interfaces. Checkout does not persist a token into the working tree, setup-node automatic package-manager caching is explicitly disabled, and workflow permissions remain contents: read. No test, audit, artifact retention or failure check was removed.
 
 Upgrade guidance: [checkout](https://github.com/actions/checkout), [setup-node](https://github.com/actions/setup-node), [setup-python](https://github.com/actions/setup-python), [upload-artifact](https://github.com/actions/upload-artifact). Re-check these official notes and run all jobs when changing major action or runner versions.
 
@@ -165,6 +167,6 @@ Review every generated page after a renderer/layout change. Text extraction can 
 
 ## Verify browser response protections
 
-The full-stack suite checks response headers on the dashboard, readiness API, PDF export, rejected method and missing page. Chromium also inspects its effective device-permission policy and checks a real fetch omits the Referer header. No device is accessed and no permission prompt is requested. Existing import, scenario, model and download cases run under the same policy.
+The full-stack suite checks response headers on the dashboard, readiness API, PDF export, rejected method and missing page. Chromium also inspects its effective device-permission policy. This inspection requires a Chromium-specific browser API and is explicitly skipped in the Firefox/WebKit runs. A separate test verifies that a real fetch omits the Referer header on every engine; response-header assertions remain enabled everywhere. No device is accessed and no permission prompt is requested. Existing import, scenario, model and download cases run under the same policy.
 
 The configured CSP restricts framing, objects, base URLs and form destinations. It is not a complete script/style policy. See [SECURITY.md](SECURITY.md#browser-response-policy) for exact headers and the remaining deployment requirements. A passing native/Compose run does not verify a hosting provider or reverse proxy preserves those headers.
