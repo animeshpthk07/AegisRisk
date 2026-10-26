@@ -1,10 +1,10 @@
 # Fictional public-demo deployment
 
-Prepared 2026-10-26. This is a deployment proposal and reproducible package, not evidence of a live service. See [release readiness](RELEASE_READINESS.md) for the unfinished authenticated workbench.
+Prepared and image-verified 2026-10-26. The owner chose to keep AegisRisk on GitHub for now. Hosting is intentionally deferred; no service was created. This is a reproducible package and retained proposal, not evidence of a live service. See [release readiness](RELEASE_READINESS.md) for the unfinished authenticated workbench.
 
 ## Proposed hosting and cost boundary
 
-Use one **Render Free web service**, named `aegisrisk-demo`, in Frankfurt, from this public GitHub repository. The [Blueprint](../render.yaml) selects Docker, the Free compute plan, a managed HTTPS endpoint, `/healthz` readiness and manual deployments. No database service, persistent disk, GPU, external AI, custom domain or paid upgrade is requested.
+If the owner explicitly resumes deployment, the retained proposal is one **Render Free web service**, named `aegisrisk-demo`, in Frankfurt, from this public GitHub repository. The [Blueprint](../render.yaml) selects Docker, the Free compute plan, a managed HTTPS endpoint, `/healthz` readiness and manual deployments. No database service, persistent disk, GPU, external AI, custom domain or paid upgrade is requested.
 
 Official [pricing](https://render.com/pricing) lists the Free web service at $0/month with 512 MB RAM. The [Free limits](https://render.com/docs/free), checked on the date above, include idle shutdown after 15 minutes, cold starts, ephemeral files and 750 shared instance hours per workspace per month. Hobby usage currently includes 5 GB outbound bandwidth and 500 standard build minutes per month. Recheck the account's actual included usage before applying.
 
@@ -59,12 +59,16 @@ The repository owner remains responsible for the hosting account and usage revie
 
 For a faulty deployment, use Render's available rollback to a previously verified build, or manually redeploy its recorded commit if the old build is no longer retained. Free-service rollback retention is limited; verify availability in the dashboard. Re-run the harmless live smoke checks and record the actual recovered SHA. If safe operation or $0 billing cannot be maintained, suspend the demo. The dataset is recreated from source, so recovery does not require preserving user uploads.
 
-## Release record — pending
+## Release record — GitHub only
 
-- Account and public-deployment approval: pending.
-- Actual billed plan / payment-method and usage review: pending.
-- Candidate image verification: see GitHub Actions; record the successful run and SHA before deployment.
-- Deployed URL and exact SHA: not yet verified.
-- Hosted smoke, screenshots, monitoring and rollback evidence: pending.
+- Owner decision, 2026-10-26: keep the project on GitHub for now; hosting deferred.
+- Verified candidate: `9b5715a0626f6e4a94e52fdabf7904dc117627ec`.
+- [Public demo image run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275): passed; 31 reused browser cases and four demo runtime cases, plus startup guards, restart and fresh-container checks.
+- [Application run #61](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565203): all four jobs passed for the same candidate.
+- [Synthetic demo evidence](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275/artifacts/12649986138): seven-day retention.
+- Initial image failures: non-root Nginx could not create `/var/lib/nginx/fastcgi`; all remaining temporary paths were moved under `/tmp`, after which run #3 passed.
+- Account, billed-plan/payment-method review, hosted URL, live smoke, screenshots and hosted operations: deferred; not performed or claimed.
+
+Recheck provider terms, billing and the candidate checks if the owner reopens deployment. Do not create a hosting account or service from this retained proposal alone.
 
 This public fictional demo does not complete authentication, authorization/tenant separation, shared persistence, CSRF strategy, a full script/style CSP, screen-reader testing or real-world model validation. Keep those gaps visible rather than relabelling this package as the complete five-phase product.
