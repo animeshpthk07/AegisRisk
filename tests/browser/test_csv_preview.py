@@ -52,6 +52,10 @@ def browser(running_app):
 
 @pytest.fixture(autouse=True)
 def portfolio_is_unchanged(running_app):
+    if os.environ.get("AEGISRISK_DEMO_PACING") == "true":
+        # Keep normal UI cases below the unchanged demo traffic budget.
+        # The separate tests/demo burst case still exercises real limiting.
+        time.sleep(1)
     before = httpx.get(f"{BASE_URL}/api/portfolio", timeout=10)
     before.raise_for_status()
     summary = before.json()["summary"]
