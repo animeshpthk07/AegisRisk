@@ -73,7 +73,8 @@ jobs:
   browser:
     name: Full-stack browser checks (${{ matrix.browser }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Slow package mirrors must not consume the application-test budget.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -98,7 +99,9 @@ jobs:
       - run: npm install -g pnpm@11.25.0
       - run: pnpm install --frozen-lockfile
       - run: pip install -e './apps/api[dev]' playwright==1.64.0
-      - run: python -m playwright install --with-deps "${{ matrix.browser }}"
+      - name: Install browser and OS dependencies
+        timeout-minutes: 15
+        run: python -m playwright install --with-deps "${{ matrix.browser }}"
       - run: ruff check --select E,F,I tests/browser
       - run: pnpm build
       - name: Prepare isolated fictional database
@@ -107,6 +110,7 @@ jobs:
           alembic upgrade head
           python -m aegisrisk.seed
       - name: Verify real browser to proxy to API flow
+        timeout-minutes: 6
         run: |
           mkdir -p test-results
           python -m uvicorn aegisrisk.main:app --host 127.0.0.1 --port 8000 > test-results/api.log 2>&1 &
