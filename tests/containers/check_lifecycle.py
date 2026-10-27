@@ -18,6 +18,7 @@ BODY = (
     "0.1,0.5,1000,INR,one_year\n"
 ).encode()
 HEADERS = {
+    "Origin": "http://127.0.0.1:3000",
     "Content-Type": "text/csv",
     "X-AegisRisk-Synthetic": "true",
     "X-AegisRisk-Reviewed": "true",
