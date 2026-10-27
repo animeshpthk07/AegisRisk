@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated 2026-10-26. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-10-27. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
@@ -8,11 +8,17 @@ AegisRisk is a public MIT educational workbench using fictional INR credit facil
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Shared-user authentication and operational controls remain unfinished.
 
+## Published educational preview — 2026-10-27
+
+[v0.1.0-preview.1](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.1.0-preview.1) is a GitHub **Pre-release**, pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. [Application run #70](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011488) passed all six jobs, and [demo image run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011459) passed for that same source. Source archives and pinned reproduction links are available on the release page. Subsequent documentation commits on main do not change this released source.
+
+This is a release of the verified fictional-data slice, not completion of all five phases. Hosting remains deferred, external AI disabled and LinkedIn launch unperformed. The shared-user security, accessibility and real-world validation limits below remain open. Documentation-only run #72 initially timed out downloading Firefox system dependencies before application tests started; its focused retry passed on 2026-10-27. The original cancelled attempt remains visible.
+
 ## Acceptance evidence
 
 | Area | Evidence required | Current status |
 | --- | --- | --- |
-| Reproducible source | Frozen dependencies, lint, tests, production build and dependency audits pass for the exact release commit | Application run #69 passed all six jobs; demo run #5 passed after adding the separate referrer assertion. Exact commits are recorded below; verify the final release commit again after application changes |
+| Reproducible source | Frozen dependencies, lint, tests, production build and dependency audits pass for the exact release commit | Published preview commit 6611ec2 passed all six application jobs in run #70 and demo image run #5; verify again for any future application release |
 | Calculations and reports | Exact totals, dataset identity, scope/caps, errors, stale responses and real downloads tested | Implemented cases pass; see [CONTRACT.md](CONTRACT.md) |
 | PDF layout | Rendered fixture pages reviewed for readable text, pagination and tables | All 13 pages reviewed for run #34 on 2026-10-24; review again after layout changes |
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
@@ -20,7 +26,7 @@ On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is 
 | Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Not complete; basic browser policy is verified, not a complete security review |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
-| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough exists; final release and LinkedIn launch pending |
+| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough and educational pre-release published; full product release and approved LinkedIn launch remain pending |
 
 Run #50 recorded 141 backend tests (one dependency deprecation warning), 19 frontend tests and 90 Chromium cases in each of two environments. Native browser tests passed in 104.15s and Compose/PostgreSQL browser tests in 105.66s. The two browser runs exercise the same cases and must not be counted as 180 distinct cases. Both dependency audits reported no known vulnerabilities at this checkpoint; these are dated checks. CI artifacts expire after seven days; preserve only synthetic release evidence needed for reproducibility.
 
@@ -62,7 +68,7 @@ A read-only public demonstration does not complete the authenticated workbench. 
 1. Close concrete usability and security defects with focused regression checks.
 2. Keep the verified demo image, provider configuration and cost/access proposal in GitHub; hosting remains deferred by owner decision.
 3. Resume deployment only if the owner explicitly reopens it; then confirm current provider terms and any required account, spending or access approval, deploy and test the real URL.
-4. Record release evidence and remaining limitations; create a versioned release only when its stated acceptance criteria pass.
+4. Keep the published educational preview and its limitations accurate; create future releases only when their stated acceptance criteria pass.
 5. Prepare the final project presentation. Show the exact LinkedIn copy to the owner before publishing, as requested.
 
 A Render Free proposal with a $0 budget is documented, but it is not activated. Provider/account, domain and operations ownership must be confirmed only if deployment is reopened. No hosting purchase or new security-sensitive access is authorized by this document. Synthetic model performance must remain labelled synthetic; it cannot be presented as bank validation or real-world hiring/credit-decision readiness.
