@@ -230,13 +230,57 @@ def fictional_csv():
 def save_snapshot(body, name="Fictional browser portfolio"):
     response = httpx.post(
         f"{BASE_URL}/api/saved-portfolios", params={"name": name},
-        headers={"Content-Type": "text/csv", "X-AegisRisk-Synthetic": "true",
+        headers={"Origin": BASE_URL, "Content-Type": "text/csv",
+                 "X-AegisRisk-Synthetic": "true",
                  "X-AegisRisk-Reviewed": "true",
                  "X-AegisRisk-Preview-Digest": sha256(body).hexdigest()},
         content=body, timeout=10,
     )
     assert response.status_code in (200, 201), response.text
     return response.json()["portfolio"]
+
+
+
+@pytest.mark.parametrize(
+    "provenance",
+    [
+        {},
+        {"Origin": "null"},
+        {"Origin": "https://untrusted.example"},
+        {"Origin": BASE_URL + "/"},
+        {"Origin": "http://127.0.0.1:3001"},
+        {"Origin": BASE_URL + " https://untrusted.example"},
+        {"Origin": BASE_URL, "Sec-Fetch-Site": "cross-site"},
+        {"Origin": BASE_URL, "Sec-Fetch-Site": "same-site"},
+        {"Origin": BASE_URL, "Sec-Fetch-Site": "none"},
+        {"Referer": BASE_URL + "/", "X-Forwarded-Host": "127.0.0.1:3000"},
+        {"Origin": "https://untrusted.example",
+         "X-Forwarded-Host": "untrusted.example", "X-Forwarded-Proto": "https"},
+    ],
+    ids=["missing", "opaque", "foreign", "path", "wrong-port", "multiple",
+         "cross-site", "same-site", "navigation", "referer-fallback",
+         "forwarded-host-spoof"],
+)
+def test_snapshot_save_rejects_untrusted_origin_without_writes(provenance):
+    before = httpx.get(f"{BASE_URL}/api/saved-portfolios", timeout=10)
+    before.raise_for_status()
+    body = fictional_csv()
+    response = httpx.post(
+        f"{BASE_URL}/api/saved-portfolios", params={"name": "Rejected origin"},
+        headers={"Content-Type": "text/csv", "X-AegisRisk-Synthetic": "true",
+                 "X-AegisRisk-Reviewed": "true",
+                 "X-AegisRisk-Preview-Digest": sha256(body).hexdigest(),
+                 **provenance},
+        content=body, timeout=10,
+    )
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "Saving requires a same-origin request from this workbench"
+    }
+    assert response.headers["cache-control"] == "no-store"
+    after = httpx.get(f"{BASE_URL}/api/saved-portfolios", timeout=10)
+    after.raise_for_status()
+    assert after.json() == before.json()
 
 
 def test_reviewed_snapshot_round_trip_and_reload(page):
