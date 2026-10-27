@@ -18,6 +18,15 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
   const headers: Record<string, string> = { 'Content-Type': csv ? 'text/csv' : 'application/json' };
   let body: ArrayBuffer | undefined;
   if (request.method === 'POST') {
+    if (saving) {
+      const origin = request.headers.get('origin');
+      const site = request.headers.get('sec-fetch-site');
+      // Browser provenance only; this does not authenticate the caller.
+      // Never use Referer or caller-supplied forwarding headers as a fallback.
+      if (origin !== request.nextUrl.origin || (site !== null && site !== 'same-origin')) {
+        return error('Saving requires a same-origin request from this workbench', 403);
+      }
+    }
     if (csv) {
       if (request.headers.get('x-aegisrisk-synthetic') !== 'true') {
         return error('Confirm synthetic data only before previewing', 400);
