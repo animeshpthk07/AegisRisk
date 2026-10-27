@@ -21,9 +21,12 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
     if (saving) {
       const origin = request.headers.get('origin');
       const site = request.headers.get('sec-fetch-site');
+      // NextURL normalizes loopback hostnames; retain the actual HTTP authority.
+      const authority = request.headers.get('host');
+      const expectedOrigin = authority ? `${request.nextUrl.protocol}//${authority}` : null;
       // Browser provenance only; this does not authenticate the caller.
       // Never use Referer or caller-supplied forwarding headers as a fallback.
-      if (origin !== request.nextUrl.origin || (site !== null && site !== 'same-origin')) {
+      if (!origin || !expectedOrigin || origin !== expectedOrigin || (site !== null && site !== 'same-origin')) {
         return error('Saving requires a same-origin request from this workbench', 403);
       }
     }
