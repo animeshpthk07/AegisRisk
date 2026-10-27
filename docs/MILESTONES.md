@@ -198,7 +198,13 @@ The separate [Public demo image run #3](https://github.com/animeshpthk07/AegisRi
 
 [Demo image run #5](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371011459) passed for `6611ec2`: 32 selected browser cases, four runtime cases, startup restrictions and restart/fresh-container recovery. Hosting remains deferred by owner decision. Linux Playwright WebKit is not branded Safari or a physical iOS test; screen-reader, browser zoom and physical-device verification remain incomplete.
 
-The first attempt of documentation-only run #72 reached the 15-minute job limit while downloading Firefox system dependencies from the Ubuntu mirror. The Firefox application tests had not started; the other jobs passed. The cancelled attempt remains in the history and is not relabelled successful. A focused retry was requested on 2026-10-27; inspect its final result before claiming that attempt passed.
+The first attempt of documentation-only run #72 reached the 15-minute job limit while downloading Firefox system dependencies from the Ubuntu mirror. The Firefox application tests had not started; the other jobs passed. The cancelled attempt remains in the history and is not relabelled successful. The focused Firefox retry passed on 2026-10-27, and run #72 now reports Success. The original timed-out attempt remains part of the run history.
+
+### GitHub educational preview — 2026-10-27
+
+Published [v0.1.0-preview.1](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.1.0-preview.1) as a GitHub **Pre-release**, pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. That exact source passed application run #70 and demo image run #5. The release provides source archives, reproducible setup links, scope and known limitations. Later documentation-only commits on main are not silently substituted for this pinned version.
+
+This packages the verified fictional-data educational slice; it does not complete all five phases or the authenticated workbench. Hosting remains deferred, external AI disabled and LinkedIn publication unperformed. The release notes retain the outstanding identity/authorization, full CSP, operational, accessibility and real-world-validation limits.
 
 ### What you can inspect
 
@@ -220,7 +226,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M9 Security | In progress; browser policy verified (run #43) | Synthetic-only defaults, no API credentials, bounded proxy and browser policy checks; authentication, full CSP and operational controls remain incomplete |
 | M10 Full verification | Partial | Backend/frontend and real workflows pass in Chromium, Firefox and WebKit; Compose browser/restart lifecycle passes; screen-reader, zoom, physical-device and broader security verification remain pending |
 | M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
-| M12 Release | Preparation in progress | Acceptance checklist and deployment guide saved; versioned release pending; hosted evidence deferred by owner |
+| M12 Release | Educational preview published; full product incomplete | v0.1.0-preview.1 pins the source verified by application #70 and demo #5; hosting deferred and broader acceptance gaps remain |
 | Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
 
 ## Visible workflow requested by user
