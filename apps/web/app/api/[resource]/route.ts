@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const reads = new Set(['health', 'ready', 'portfolio', 'facilities', 'explanation', 'saved-portfolios', 'report', 'report-pdf', 'model-card']);
+const reads = new Set(['health', 'ready', 'access', 'portfolio', 'facilities', 'explanation', 'saved-portfolios', 'report', 'report-pdf', 'model-card']);
 const writes = new Set(['stress', 'scenario-report', 'scenario-report-pdf', 'import-preview', 'saved-portfolios', 'model-predict']);
 const uploadTypes = new Set(['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
-const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Vary: 'Authorization' };
 function error(detail: string, status: number) {
   return NextResponse.json({ detail }, { status, headers: safeHeaders });
 }
@@ -16,6 +16,11 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
   const saving = resource === 'saved-portfolios';
   const csv = resource === 'import-preview' || saving;
   const headers: Record<string, string> = { 'Content-Type': csv ? 'text/csv' : 'application/json' };
+  const authorization = request.headers.get('authorization');
+  if (authorization !== null) {
+    if (!/^Bearer [A-Za-z0-9_-]{43}$/.test(authorization)) return error('Valid access token required', 401);
+    headers.Authorization = authorization;
+  }
   let body: ArrayBuffer | undefined;
   if (request.method === 'POST') {
     if (saving) {
@@ -82,7 +87,7 @@ async function forward(request: NextRequest, context: { params: Promise<{ resour
         signal: AbortSignal.timeout(8000), redirect: 'error' },
     );
     const payload = await response.json();
-    return NextResponse.json(payload, { status: response.status, headers: safeHeaders });
+    return NextResponse.json(payload, { status: response.status, headers: { ...safeHeaders, ...(response.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {}) } });
   } catch {
     return error('Backend unavailable. Start the API and check database readiness.', 503);
   }
