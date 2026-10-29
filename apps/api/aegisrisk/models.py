@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text
+from sqlalchemy import CheckConstraint, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .database import Base
@@ -29,10 +29,12 @@ class SavedPortfolio(Base):
     __tablename__ = "saved_portfolios"
     __table_args__ = (
         CheckConstraint("row_count >= 1 AND row_count <= 1000", name="valid_row_count"),
+        UniqueConstraint("workspace_id", "digest", name="uq_saved_workspace_digest"),
     )
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     name: Mapped[str] = mapped_column(String(80))
-    digest: Mapped[str] = mapped_column(String(64), unique=True)
+    workspace_id: Mapped[str] = mapped_column(String(36), default="local", server_default="local")
+    digest: Mapped[str] = mapped_column(String(64))
     csv_text: Mapped[str] = mapped_column(Text)
     row_count: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[str] = mapped_column(String(32))
