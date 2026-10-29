@@ -20,7 +20,8 @@ from playwright.sync_api import expect, sync_playwright
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACTS = ROOT / "test-results"
 BODY = ("id,borrower,industry,geography,rating,pd,lgd,ead,currency,horizon\n"
-        "SYN-PRIVATE-1,Fictional Private Birch,Energy,West,B,0.1,0.5,1000,INR,one_year\n").encode()
+        "SYN-PRIVATE-1,Fictional Private Birch,Energy,West,B,0.1,0.5,"
+        "1000,INR,one_year\n").encode()
 
 
 def free_port():
@@ -53,7 +54,8 @@ def private_app(tmp_path_factory):
         "API_BASE_URL": f"http://127.0.0.1:{api_port}",
         "NEXT_TELEMETRY_DISABLED": "1",
     }
-    subprocess.run(["alembic", "upgrade", "head"], cwd=ROOT / "apps/api", env=env, check=True)
+    subprocess.run(["alembic", "upgrade", "head"],
+                   cwd=ROOT / "apps/api", env=env, check=True)
     subprocess.run([sys.executable, "-m", "aegisrisk.seed"], env=env, check=True)
     processes = []
     logs = []
@@ -62,7 +64,8 @@ def private_app(tmp_path_factory):
             ("access-api", [sys.executable, "-m", "uvicorn", "aegisrisk.main:app",
                             "--host", "127.0.0.1", "--port", str(api_port)]),
             ("access-web", ["pnpm", "--dir", str(ROOT / "apps/web"), "exec", "next",
-                            "start", "--hostname", "127.0.0.1", "--port", str(web_port)]),
+                            "start", "--hostname", "127.0.0.1",
+                            "--port", str(web_port)]),
         ):
             log = (ARTIFACTS / f"{name}.log").open("w")
             logs.append(log)
@@ -82,7 +85,8 @@ def private_app(tmp_path_factory):
                    "Content-Type": "text/csv", "X-AegisRisk-Synthetic": "true",
                    "X-AegisRisk-Reviewed": "true",
                    "X-AegisRisk-Preview-Digest": sha256(BODY).hexdigest()}
-        saved = httpx.post(base + "/api/saved-portfolios?name=Fictional%20access%20seed",
+        saved = httpx.post(
+            base + "/api/saved-portfolios?name=Fictional%20access%20seed",
                            headers=headers, content=BODY, timeout=15)
         assert saved.status_code == 201
         yield {"url": base, "tokens": tokens, "records": records,
@@ -104,7 +108,8 @@ def private_app(tmp_path_factory):
 @pytest.fixture(scope="session")
 def private_browser(private_app):
     with sync_playwright() as playwright:
-        instance = getattr(playwright, os.environ.get("AEGISRISK_BROWSER", "chromium")).launch()
+        engine = os.environ.get("AEGISRISK_BROWSER", "chromium")
+        instance = getattr(playwright, engine).launch()
         yield instance
         instance.close()
 
@@ -146,14 +151,17 @@ def test_keyboard_unlock_reload_and_memory_only_token(page, private_app, width):
     expect(field).to_have_value("")
     field.fill(private_app["tokens"][0])
     field.press("Tab")
-    expect(page.get_by_role("button", name="Unlock workspace", exact=True)).to_be_focused()
+    expect(page.get_by_role(
+        "button", name="Unlock workspace", exact=True
+    )).to_be_focused()
     page.keyboard.press("Enter")
     expect(page.get_by_label("Workspace access")).to_contain_text("Analyst workspace")
     storage = page.evaluate(
         "JSON.stringify([Object.entries(localStorage),"
         "Object.entries(sessionStorage), document.cookie])"
     )
-    assert all(token not in storage and token not in page.url for token in private_app["tokens"])
+    assert all(token not in storage and token not in page.url
+               for token in private_app["tokens"])
     page.get_by_role("button", name="Lock workbench").click()
     expect(field).to_be_focused()
     assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
@@ -188,32 +196,41 @@ def test_save_lock_switch_workspace_and_foreign_export(page, private_app):
     expect(page.get_by_label("Active portfolio", exact=True)).to_have_value("")
     expect(page.get_by_role("option", name=re.compile(name))).to_have_count(0)
     expect(page.get_by_text(re.compile("Validation passed"))).to_have_count(0)
-    response = httpx.get(private_app["url"] + "/api/report", params={"dataset_id": saved_id},
-                         headers={"Authorization": "Bearer " + private_app["tokens"][1]}, timeout=10)
+    response = httpx.get(
+        private_app["url"] + "/api/report", params={"dataset_id": saved_id},
+        headers={"Authorization": "Bearer " + private_app["tokens"][1]},
+                         timeout=10)
     assert response.status_code == 404
 
 
 def test_viewer_can_preview_but_never_save(page, private_app):
     unlock(page, private_app, 2)
     expect(page.get_by_label("Workspace access")).to_contain_text("Read-only workspace")
-    page.get_by_label("Active portfolio", exact=True).select_option(private_app["saved_id"])
-    expect(page.get_by_label("Active portfolio", exact=True)).to_have_value(private_app["saved_id"])
+    selector = page.get_by_label("Active portfolio", exact=True)
+    selector.select_option(private_app["saved_id"])
+    expect(selector).to_have_value(private_app["saved_id"])
     page.get_by_role("button", name="Use fictional example").click()
     page.get_by_role(
         "checkbox", name=re.compile("I confirm this file contains only fictional")
     ).check()
     page.get_by_role("button", name="Validate and preview").click()
     expect(page.get_by_text(re.compile("Validation passed"))).to_be_visible()
-    expect(page.get_by_role("button", name="Save reviewed portfolio", exact=True)).to_have_count(0)
-    response = httpx.get(private_app["url"] + "/api/report", params={"dataset_id": private_app["saved_id"]},
-                         headers={"Authorization": "Bearer " + private_app["tokens"][2]}, timeout=10)
+    expect(page.get_by_role(
+        "button", name="Save reviewed portfolio", exact=True
+    )).to_have_count(0)
+    response = httpx.get(
+        private_app["url"] + "/api/report",
+        params={"dataset_id": private_app["saved_id"]},
+        headers={"Authorization": "Bearer " + private_app["tokens"][2]},
+                         timeout=10)
     assert response.status_code == 200
 
 
 def test_rejected_access_clears_workspace_and_pending_ui(page, private_app):
     unlock(page, private_app)
     page.route("**/api/stress*", lambda route: route.fulfill(
-        status=401, content_type="application/json", body='{"detail":"Valid access token required"}'))
+        status=401, content_type="application/json",
+        body='{"detail":"Valid access token required"}'))
     page.get_by_role("button", name="Calculate scenario →", exact=True).click()
     expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
     expect(page.get_by_label("Active portfolio", exact=True)).to_have_count(0)
@@ -231,10 +248,13 @@ def test_access_outage_fails_closed_and_retry_recovers(page, private_app):
     unlock(page, private_app)
 
 
-@pytest.mark.parametrize("authorization", [None, "Basic abc", "Bearer short", "Bearer " + "x" * 43])
+@pytest.mark.parametrize(
+    "authorization", [None, "Basic abc", "Bearer short", "Bearer " + "x" * 43]
+)
 def test_proxy_rejects_missing_or_invalid_identity(private_app, authorization):
     headers = {} if authorization is None else {"Authorization": authorization}
-    response = httpx.get(private_app["url"] + "/api/portfolio", headers=headers, timeout=10)
+    response = httpx.get(private_app["url"] + "/api/portfolio",
+                         headers=headers, timeout=10)
     assert response.status_code == 401
     assert response.headers["cache-control"] == "no-store"
 
@@ -243,7 +263,8 @@ def test_proxy_ignores_claimed_workspace_and_user_headers(private_app):
     headers = {"Authorization": "Bearer " + private_app["tokens"][0],
                "X-Workspace-Id": private_app["records"][1]["workspace"],
                "X-User-Id": private_app["records"][1]["subject"]}
-    response = httpx.get(private_app["url"] + "/api/access", headers=headers, timeout=10)
+    response = httpx.get(private_app["url"] + "/api/access",
+                         headers=headers, timeout=10)
     assert response.status_code == 200
     assert response.json()["workspace"] == private_app["records"][0]["workspace"]
     assert response.json()["subject"] == private_app["records"][0]["subject"]
