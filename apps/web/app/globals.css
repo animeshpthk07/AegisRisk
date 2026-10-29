@@ -37,3 +37,12 @@ button:disabled{cursor:not-allowed}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
 }
+
+/* Access controls live outside the dashboard's theme and navigation shell. */
+.access-screen,.access-session{--bg:#0a111b;--panel:#111d2b;--line:#253346;--text:#edf2f8;--muted:#a0afc2;--mint:#62dfb9;background:var(--bg);color:var(--text)}
+main.access-screen{margin:0;max-width:none;min-height:100vh;padding:clamp(20px,8vw,90px) 16px;display:grid;place-items:start center}
+.access-screen>.panel{width:min(100%,560px);overflow-wrap:anywhere}
+.access-screen p{line-height:1.6}.access-screen h1{font-size:clamp(24px,5vw,34px)}
+aside.access-session{position:relative;inset:auto;width:auto;margin-left:238px;padding:12px 24px;border:0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;font-size:12px}
+.access-session button,.access-screen button{min-height:44px}.access-screen button:disabled{opacity:.6;cursor:wait}
+@media(max-width:900px){aside.access-session{margin-left:0}}
