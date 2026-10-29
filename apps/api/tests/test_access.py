@@ -10,13 +10,15 @@ from uuid import uuid4
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi import HTTPException
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
-
-import aegisrisk.database as database
-from aegisrisk.access import current_principal
-from test_api import client as client
+from starlette.requests import Request
+from test_api import client as client  # noqa: PLC0414 - re-export the pytest fixture
 from test_api import csv_body, save_csv
+
+from aegisrisk import database
+from aegisrisk.access import authenticate, current_principal
 
 
 @pytest.fixture
@@ -56,9 +58,6 @@ def test_all_data_endpoints_require_identity(client, identities, method, resourc
 def test_invalid_tokens_do_not_expose_data(client, identities, value):
     # Unicode is checked at the authentication function through a raw ASGI header below.
     if "é" in value:
-        from starlette.requests import Request
-        from aegisrisk.access import authenticate
-        from fastapi import HTTPException
         request = Request({"type": "http", "headers": [(b"authorization", value.encode())]})
         with pytest.raises(HTTPException) as error:
             authenticate(request)
