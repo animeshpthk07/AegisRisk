@@ -1234,6 +1234,18 @@ def test_browser_omits_referrer(page):
 
 
 
+def wait_for_browser_condition(page, expression):
+    """Poll via the test driver, without the in-page eval used by wait_for_function."""
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if page.evaluate(expression):
+            return
+        page.wait_for_timeout(50)
+    assert page.evaluate(expression), (
+        f"Browser condition did not become true: {expression}"
+    )
+
+
 def tab_to(page, target):
     """Reach a real control through sequential keyboard navigation only."""
     expect(target).to_be_visible()
@@ -1286,13 +1298,15 @@ def test_keyboard_entry_search_scroll_scenario_and_download(page, width):
     tab_to(page, table)
     expect(table).to_have_css("outline-width", "2px")
     page.keyboard.press("ArrowDown")
-    page.wait_for_function(
+    wait_for_browser_condition(
+        page,
         "document.querySelector('[aria-label=\"Facility metrics table\"]')"
         ".scrollTop > 0"
     )
     if width == 320:
         page.keyboard.press("ArrowRight")
-        page.wait_for_function(
+        wait_for_browser_condition(
+            page,
             "document.querySelector('[aria-label=\"Facility metrics table\"]')"
             ".scrollLeft > 0"
         )
@@ -1423,7 +1437,7 @@ def test_browser_blocks_unapproved_script_and_event_handler(page, attack):
         button.remove();
       }
     }""", attack)
-    page.wait_for_function("window.__cspProbe.violations.length > 0")
+    wait_for_browser_condition(page,"window.__cspProbe.violations.length > 0")
     assert page.evaluate("window.__cspProbe.ran") is False
     violations = page.evaluate("window.__cspProbe.violations")
     expected = "script-src-elem" if attack == "script" else "script-src-attr"
@@ -1444,16 +1458,26 @@ def test_browser_blocks_unapproved_script_and_event_handler(page, attack):
 def test_browser_blocks_string_compilation_in_production(page):
     csp_observer(page)
     page.evaluate("""() => {
+      const button = document.createElement('button');
+      button.id = 'csp-compilation-probe';
+      button.textContent = 'Run CSP compilation probe';
+      document.body.append(button);
       const script = document.createElement('script');
       script.nonce = document.querySelector('script[nonce]').nonce;
-      script.textContent = 'window.__cspProbe.allowed = true;'
+      script.textContent =
+        'document.getElementById("csp-compilation-probe").onclick = () => {'
+        + 'window.__cspProbe.allowed = true;'
         + 'try { window.__cspProbe.ran = new Function("return true")(); }'
-        + 'catch (error) { window.__cspProbe.error = error.name; }';
+        + 'catch (error) { window.__cspProbe.error = error.name; }'
+        + '};';
       document.body.append(script);
     }""")
+    # Run outside debugger evaluation: a real click uses the page's CSP context.
+    page.get_by_role("button", name="Run CSP compilation probe", exact=True).click()
     assert page.evaluate("window.__cspProbe.allowed") is True
     assert page.evaluate("window.__cspProbe.ran") is False
     assert page.evaluate("window.__cspProbe.error") == "EvalError"
+    page.locator('#csp-compilation-probe').evaluate("el => el.remove()")
 
 
 def test_browser_blocks_foreign_connections(page):
@@ -1465,7 +1489,8 @@ def test_browser_blocks_foreign_connections(page):
       } catch { return 'blocked'; }
     }""")
     assert result == "blocked"
-    page.wait_for_function(
+    wait_for_browser_condition(
+        page,
         "window.__cspProbe.violations.includes('connect-src')"
     )
     # Same-origin access and calculations continue to work.
@@ -1483,7 +1508,7 @@ def test_style_elements_require_nonce_but_chart_attributes_work(page):
       style.textContent = '#csp-style-probe { --csp-probe: rejected; }';
       document.head.append(style);
     }""")
-    page.wait_for_function("window.__cspProbe.violations.length > 0")
+    wait_for_browser_condition(page,"window.__cspProbe.violations.length > 0")
     probe = page.locator('#csp-style-probe')
     assert probe.evaluate(
         "el => getComputedStyle(el).getPropertyValue('--csp-probe').trim()"
