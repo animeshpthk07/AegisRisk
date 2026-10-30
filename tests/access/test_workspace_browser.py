@@ -147,7 +147,9 @@ def test_keyboard_unlock_reload_and_memory_only_token(page, private_app, width):
     field = page.get_by_label("Access token", exact=True)
     field.fill("x" * 43)
     field.press("Enter")
-    expect(page.get_by_role("alert")).to_contain_text("invalid, expired or revoked")
+    expect(page.locator(".access-screen").get_by_role("alert")).to_contain_text(
+        "invalid, expired or revoked"
+    )
     expect(field).to_have_value("")
     field.fill(private_app["tokens"][0])
     field.press("Tab")
@@ -241,7 +243,9 @@ def test_access_outage_fails_closed_and_retry_recovers(page, private_app):
     page.route("**/api/access", lambda route: route.fulfill(
         status=503, content_type="application/json", body='{"detail":"Unavailable"}'))
     page.reload()
-    expect(page.get_by_role("alert")).to_contain_text("Access service unavailable")
+    expect(page.locator(".access-screen").get_by_role("alert")).to_contain_text(
+        "Access service unavailable"
+    )
     expect(page.get_by_label("Active portfolio", exact=True)).to_have_count(0)
     page.unroute("**/api/access")
     page.get_by_role("button", name="Retry connection").click()
