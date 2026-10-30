@@ -130,6 +130,12 @@ jobs:
           from base64 import b64encode
           from pathlib import Path
           for width in (1440, 320):
+              image = Path(
+                  f"test-results/access-test_keyboard_unlock_reload_and_memory_only_token_{width}_.png"
+              )
+              if image.is_file() and image.stat().st_size <= 1_000_000:
+                  encoded = b64encode(image.read_bytes()).decode("ascii")
+                  print(f"AEGISRISK_ACCESS_PREVIEW {image.name} data:image/png;base64,{encoded}")
               for theme in ("dark", "light"):
                   image = Path(f"test-results/ui-review-{width}-{theme}.png")
                   if image.is_file() and image.stat().st_size <= 1_000_000:
