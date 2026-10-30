@@ -12,6 +12,7 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 - FastAPI versioned API, SQLAlchemy facilities, Alembic migrations and explicit fictional seed.
 - Facility/portfolio expected loss, EAD-weighted metrics, borrower HHI, industry exposures and bounded scenario sensitivity.
 - Deterministic narrative derived from backend totals, not an LLM.
+- Optional administrator-issued bearer-token access with viewer/analyst roles and isolated saved workspaces. See [access configuration and limits](docs/AUTHENTICATION.md).
 - PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
 - Bounded synthetic CSV and values-only XLSX preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
 - Opt-in reviewed CSV / XLSX snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
@@ -20,7 +21,7 @@ Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified
 
 - Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md) and the verified checkpoint below; synthetic test performance is not real-world model validation.
 
-**Not yet the complete product:** no authentication or verified public deployment. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
+**Not yet the complete product:** optional workspace tokens are a limited access mechanism; production identity, a complete security review and verified public deployment remain unfinished. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
 
 Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), [API contract](docs/CONTRACT.md), and [release readiness](docs/RELEASE_READINESS.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
 
@@ -66,7 +67,7 @@ That historical run verifies the CSV-preview slice only, not the later snapshot 
 
 [Verification run #12](https://github.com/animeshpthk07/AegisRisk/actions/runs/38982082684) passed on 17 October 2026 (Asia/Kolkata) for commit `73cc16b`: backend, frontend and full-stack Chromium checks succeeded, including reviewed saving, duplicate reuse, reload, selection and stale stress-response protection. Historical failures remain in the Actions history.
 
-On a local, single-user instance, explicitly set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process after applying migrations. Keep it disabled on shared or public instances: this feature has no authentication, tenant isolation, retention policy or total storage quota.
+On a local, single-user instance, explicitly set `SYNTHETIC_IMPORTS_ENABLED=true` on the API process after applying migrations. Optional [token mode](docs/AUTHENTICATION.md) scopes saved records and duplicate reuse to the authenticated workspace and denies saves to viewers. Keep saving disabled on shared or public deployments until production identity, retention, total storage quotas and the remaining operational controls are reviewed. Only fictional data is supported.
 
 1. Validate a fictional CSV or values-only XLSX and inspect its totals.
 2. Enter a name, confirm that you reviewed the totals, then choose **Save reviewed portfolio**.
