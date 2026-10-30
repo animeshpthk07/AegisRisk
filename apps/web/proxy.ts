@@ -27,7 +27,7 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next({ request: { headers } });
   response.headers.set('Content-Security-Policy', policy);
   // Nonced documents must not be shared or reused by an intermediary cache.
-  response.headers.set('Cache-Control', 'private, no-store');
+  response.headers.set('Cache-Control', 'no-store');
   return response;
 }
 
