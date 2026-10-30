@@ -1,4 +1,4 @@
-"""Opt-in, single-user synthetic snapshots. Not a public upload service."""
+"""Opt-in immutable snapshots scoped to the verified request workspace."""
 
 import os
 from datetime import UTC, datetime
@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .access import require_writer, workspace_id
 from .database import get_session
 from .imports import parse_csv, parse_import, read_csv_body
 from .models import Facility, SavedPortfolio
@@ -37,7 +38,9 @@ def load_rows(session: Session, dataset_id: UUID | None = None):
     if dataset_id is None:
         return list(session.scalars(select(Facility).order_by(Facility.id)))
     require_enabled()
-    snapshot = session.get(SavedPortfolio, str(dataset_id))
+    snapshot = session.scalar(select(SavedPortfolio).where(
+        SavedPortfolio.id == str(dataset_id), SavedPortfolio.workspace_id == workspace_id()
+    ))
     if snapshot is None:
         raise HTTPException(404, "Saved portfolio not found")
     try:
@@ -58,10 +61,15 @@ def list_snapshots(
 ):
     if not imports_enabled():
         return {"enabled": False, "items": [], "total": 0, "offset": offset, "limit": limit}
-    rows = session.scalars(select(SavedPortfolio).order_by(
+    owner = workspace_id()
+    rows = session.scalars(select(SavedPortfolio).where(
+        SavedPortfolio.workspace_id == owner
+    ).order_by(
         SavedPortfolio.created_at.desc(), SavedPortfolio.id
     ).offset(offset).limit(limit))
-    total = session.scalar(select(func.count()).select_from(SavedPortfolio))
+    total = session.scalar(select(func.count()).select_from(SavedPortfolio).where(
+        SavedPortfolio.workspace_id == owner
+    ))
     return {"enabled": True, "items": [metadata(row) for row in rows],
             "total": total, "offset": offset, "limit": limit}
 
@@ -73,6 +81,8 @@ async def save_snapshot(
     name: str = Query(..., min_length=1, max_length=80),
 ):
     require_enabled()
+    require_writer()
+    owner = workspace_id()
     name = name.strip()
     if not name or not name.isprintable() or name.startswith(("=", "+", "-", "@")):
         raise HTTPException(422, "Use a printable, non-formula portfolio name")
@@ -85,12 +95,13 @@ async def save_snapshot(
     if request.headers.get("x-aegisrisk-preview-digest") != result["digest"]:
         raise HTTPException(409, "File changed since preview; validate and review it again")
     existing = session.scalar(select(SavedPortfolio).where(
-        SavedPortfolio.digest == result["storage_digest"]
+        SavedPortfolio.digest == result["storage_digest"],
+        SavedPortfolio.workspace_id == owner
     ))
     if existing is not None:
         return {"persisted": True, "created": False, "portfolio": metadata(existing)}
     snapshot = SavedPortfolio(
-        id=str(uuid4()), name=name, digest=result["storage_digest"],
+        id=str(uuid4()), name=name, digest=result["storage_digest"], workspace_id=owner,
         csv_text=stored.decode("utf-8"), row_count=result["row_count"],
         created_at=datetime.now(UTC).isoformat(),
     )
@@ -101,7 +112,8 @@ async def save_snapshot(
         # A concurrent retry of identical bytes must resolve to the same saved snapshot.
         session.rollback()
         existing = session.scalar(select(SavedPortfolio).where(
-            SavedPortfolio.digest == result["storage_digest"]
+            SavedPortfolio.digest == result["storage_digest"],
+            SavedPortfolio.workspace_id == owner
         ))
         if existing is None:
             raise

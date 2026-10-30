@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { workbenchFetch as fetch } from './access';
 import { percent } from '../lib/format.mjs';
 
 const MAX_BYTES = 262144;

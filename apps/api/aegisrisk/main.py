@@ -14,6 +14,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from .access import authenticate, configuration, current_principal
 from .database import get_session
 from .imports import router as import_router
 from .model_lab import router as model_router
@@ -32,7 +33,20 @@ SessionDep = Annotated[Session, Depends(get_session)]
 
 @app.middleware("http")
 async def safe_headers(request: Request, call_next):
-    response = await call_next(request)
+    token = current_principal.set(None)
+    try:
+        try:
+            if request.url.path != "/api/v1/health":
+                if request.url.path == "/api/v1/ready":
+                    configuration()
+                else:
+                    current_principal.set(authenticate(request))
+            response = await call_next(request)
+        except HTTPException as exc:
+            response = JSONResponse(status_code=exc.status_code,
+                                    content={"detail": exc.detail}, headers=exc.headers)
+    finally:
+        current_principal.reset(token)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Cache-Control"] = "no-store"
     return response
@@ -47,6 +61,13 @@ async def database_error(request, exc):
 @app.get("/api/v1/health")
 def health():
     return {"status": "ok", "service": "aegisrisk-api", "version": "0.1.0", "external_ai": False}
+
+
+@app.get("/api/v1/access")
+def access_status():
+    principal = current_principal.get()
+    return {"mode": configuration()[0], "subject": principal.subject,
+            "workspace": principal.workspace, "role": principal.role}
 
 
 @app.get("/api/v1/ready")

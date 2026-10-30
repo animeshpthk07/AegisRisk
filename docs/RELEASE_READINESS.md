@@ -1,12 +1,24 @@
 # Release readiness
 
-Updated 2026-10-27. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-10-30. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
 AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The published educational preview remains pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. The later verified development checkpoint below records the additional snapshot-origin protection and demo-test reliability work.
 
-On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Shared-user authentication and operational controls remain unfinished.
+On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
+
+## Optional workspace access — verified 2026-10-30
+
+[Application run #112](https://github.com/animeshpthk07/AegisRisk/actions/runs/40989999826) passed all six jobs for `45afa677368cd77a0c8e71aba702457e55b5f43d`: backend, frontend, Chromium, Firefox, WebKit and PostgreSQL lifecycle. Backend recorded 190 passing tests with one dependency deprecation warning. Chromium recorded 102 existing workflow cases plus 11 access cases; WebKit recorded 101 existing cases plus the documented Chromium-only inspection skip, and all 11 access cases. The same access suite passed in Firefox. Repeated engines/environments are not additional distinct cases.
+
+Optional administrator-issued bearer tokens now gate protected APIs and the browser workbench. Server-side roles restrict saves; catalog, counts, deduplication, calculations and saved-data exports are workspace-scoped. Migration 0003 preserves legacy local snapshots and blocks unsafe downgrade. The browser keeps tokens in memory and clears workspace state on refresh, lock or rejected access. No real credentials were issued. [AUTHENTICATION.md](AUTHENTICATION.md) documents configuration and limits.
+
+Two Chromium unlock captures at 1440 and 320 pixels were inspected through the run log: text, input focus, help and controls fit without page clipping or overlap. This is a review of those captures, not every authenticated screen or accessibility certification. The access tests use disposable credentials and omit traces. Synthetic artifacts have seven-day retention.
+
+Run #106 failed three new access tests because a global alert locator also matched the Next.js route announcer. Commit `9eac24d` scopes those assertions to the access screen; the assertions and application restrictions were retained. Subsequent run #112 passed. Earlier failures and superseded/cancelled runs remain visible.
+
+This is a development checkpoint, not a replacement for the source pinned by v0.1.0-preview.1 or completion of all five phases. The default local mode remains anonymous; optional tokens do not provide enterprise identity, MFA, idle locking, complete CSP, quotas or storage operations. Hosting remains deferred by owner decision.
 
 ## Published educational preview — 2026-10-27
 
@@ -31,7 +43,7 @@ The initial comparison used NextURL, whose loopback normalization rejected valid
 | PDF layout | Rendered fixture pages reviewed for readable text, pagination and tables | All 13 pages reviewed for run #34 on 2026-10-24; review again after layout changes |
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
 | Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. The same workflows also pass in Firefox and WebKit; screen-reader, browser zoom and physical-device validation remain pending |
-| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Not complete; basic browser policy and the web snapshot-origin guard are verified. Authentication, tenant isolation and the complete security review remain open |
+| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Limited token/workspace slice verified in run #112; production identity, full CSP, quotas, storage lifecycle and independent security review remain open |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
 | Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough and educational pre-release published; full product release and approved LinkedIn launch remain pending |
