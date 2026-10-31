@@ -1234,6 +1234,18 @@ def test_browser_omits_referrer(page):
 
 
 
+def wait_for_browser_condition(page, expression):
+    """Poll via the test driver, without the in-page eval used by wait_for_function."""
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        if page.evaluate(expression):
+            return
+        page.wait_for_timeout(50)
+    assert page.evaluate(expression), (
+        f"Browser condition did not become true: {expression}"
+    )
+
+
 def tab_to(page, target):
     """Reach a real control through sequential keyboard navigation only."""
     expect(target).to_be_visible()
@@ -1286,13 +1298,15 @@ def test_keyboard_entry_search_scroll_scenario_and_download(page, width):
     tab_to(page, table)
     expect(table).to_have_css("outline-width", "2px")
     page.keyboard.press("ArrowDown")
-    page.wait_for_function(
+    wait_for_browser_condition(
+        page,
         "document.querySelector('[aria-label=\"Facility metrics table\"]')"
         ".scrollTop > 0"
     )
     if width == 320:
         page.keyboard.press("ArrowRight")
-        page.wait_for_function(
+        wait_for_browser_condition(
+            page,
             "document.querySelector('[aria-label=\"Facility metrics table\"]')"
             ".scrollLeft > 0"
         )
@@ -1362,3 +1376,151 @@ def test_dashboard_reflows_without_document_horizontal_scroll(page, width, light
 def test_reduced_motion_disables_animated_document_scrolling(page):
     page.emulate_media(reduced_motion="reduce")
     expect(page.locator("html")).to_have_css("scroll-behavior", "auto")
+
+
+@pytest.mark.parametrize("path", ["/", "/security-header-missing-page"])
+@pytest.mark.parametrize("prefetch", [False, True])
+def test_csp_nonce_is_fresh_and_ignores_caller_headers(path, prefetch):
+    headers = {
+        "X-Nonce": "caller-controlled",
+        "Content-Security-Policy": "script-src 'unsafe-inline'",
+    }
+    if prefetch:
+        headers.update({"purpose": "prefetch", "next-router-prefetch": "1"})
+    nonces = []
+    for _ in range(2):
+        response = httpx.get(BASE_URL + path, headers=headers, timeout=15)
+        assert response.status_code == (200 if path == "/" else 404)
+        policy = response.headers["content-security-policy"]
+        assert "caller-controlled" not in policy
+        directive = next(p.strip() for p in policy.split(";")
+                         if p.strip().startswith("script-src "))
+        match = re.search(r"'nonce-([A-Za-z0-9+/]{43}=)'", directive)
+        assert match, directive
+        nonce = match.group(1)
+        assert "'strict-dynamic'" in directive
+        assert "'unsafe-inline'" not in directive
+        assert "'unsafe-eval'" not in directive
+        assert "script-src-attr 'none'" in policy
+        assert "default-src 'none'" in policy
+        assert "no-store" in response.headers["cache-control"]
+        if path == "/":
+            scripts = re.findall(r'<script\b[^>]*>', response.text)
+            assert scripts
+            assert all(f'nonce="{nonce}"' in script for script in scripts)
+        nonces.append(nonce)
+    assert nonces[0] != nonces[1]
+
+
+def csp_observer(page):
+    page.evaluate("""() => {
+      window.__cspProbe = {violations: [], ran: false, allowed: false};
+      document.addEventListener('securitypolicyviolation', event => {
+        window.__cspProbe.violations.push(event.effectiveDirective);
+      });
+    }""")
+
+
+@pytest.mark.parametrize("attack", ["script", "event-handler"])
+def test_browser_blocks_unapproved_script_and_event_handler(page, attack):
+    csp_observer(page)
+    page.evaluate("""attack => {
+      if (attack === 'script') {
+        const script = document.createElement('script');
+        script.textContent = 'window.__cspProbe.ran = true';
+        document.body.append(script);
+      } else {
+        const button = document.createElement('button');
+        button.setAttribute('onclick', 'window.__cspProbe.ran = true');
+        document.body.append(button);
+        button.click();
+        button.remove();
+      }
+    }""", attack)
+    wait_for_browser_condition(page,"window.__cspProbe.violations.length > 0")
+    assert page.evaluate("window.__cspProbe.ran") is False
+    violations = page.evaluate("window.__cspProbe.violations")
+    expected = "script-src-elem" if attack == "script" else "script-src-attr"
+    assert expected in violations or "script-src" in violations
+    # Positive control: the same browser executes a correctly nonced script.
+    page.evaluate("""() => {
+      const script = document.createElement('script');
+      script.nonce = document.querySelector('script[nonce]').nonce;
+      script.textContent = 'window.__cspProbe.allowed = true';
+      document.body.append(script);
+    }""")
+    assert page.evaluate("window.__cspProbe.allowed") is True
+    page.get_by_role("button", name="Toggle light and dark theme").click()
+    expect(page.get_by_role("button", name="Toggle light and dark theme"))\
+        .to_have_attribute("aria-pressed", "true")
+
+
+def test_browser_blocks_string_compilation_in_production(page):
+    csp_observer(page)
+    page.evaluate("""() => {
+      const button = document.createElement('button');
+      button.id = 'csp-compilation-probe';
+      button.textContent = 'Run CSP compilation probe';
+      document.body.append(button);
+      const script = document.createElement('script');
+      script.nonce = document.querySelector('script[nonce]').nonce;
+      script.textContent =
+        'document.getElementById("csp-compilation-probe").onclick = () => {'
+        + 'window.__cspProbe.allowed = true;'
+        + 'try { window.__cspProbe.ran = new Function("return true")(); }'
+        + 'catch (error) { window.__cspProbe.error = error.name; }'
+        + '};';
+      document.body.append(script);
+    }""")
+    # Run outside debugger evaluation: a real click uses the page's CSP context.
+    page.get_by_role("button", name="Run CSP compilation probe", exact=True).click()
+    assert page.evaluate("window.__cspProbe.allowed") is True
+    assert page.evaluate("window.__cspProbe.ran") is False
+    assert page.evaluate("window.__cspProbe.error") == "EvalError"
+    page.locator('#csp-compilation-probe').evaluate("el => el.remove()")
+
+
+def test_browser_blocks_foreign_connections(page):
+    csp_observer(page)
+    result = page.evaluate("""async () => {
+      try {
+        await fetch('https://aegisrisk-csp-probe.invalid/no-data');
+        return 'unexpected-success';
+      } catch { return 'blocked'; }
+    }""")
+    assert result == "blocked"
+    wait_for_browser_condition(
+        page,
+        "window.__cspProbe.violations.includes('connect-src')"
+    )
+    # Same-origin access and calculations continue to work.
+    assert calculate_scenario(page)["stressed_el"] >= 0
+
+
+def test_style_elements_require_nonce_but_chart_attributes_work(page):
+    csp_observer(page)
+    page.evaluate("""() => {
+      const probe = document.createElement('div');
+      probe.id = 'csp-style-probe';
+      probe.style.width = '123px';
+      document.body.append(probe);
+      const style = document.createElement('style');
+      style.textContent = '#csp-style-probe { --csp-probe: rejected; }';
+      document.head.append(style);
+    }""")
+    wait_for_browser_condition(page,"window.__cspProbe.violations.length > 0")
+    probe = page.locator('#csp-style-probe')
+    assert probe.evaluate(
+        "el => getComputedStyle(el).getPropertyValue('--csp-probe').trim()"
+    ) == ""
+    expect(probe).to_have_css("width", "123px")
+    page.evaluate("""() => {
+      const style = document.createElement('style');
+      style.nonce = document.querySelector('script[nonce]').nonce;
+      style.textContent = '#csp-style-probe { --csp-probe: approved; }';
+      document.head.append(style);
+    }""")
+    assert probe.evaluate(
+        "el => getComputedStyle(el).getPropertyValue('--csp-probe').trim()"
+    ) == "approved"
+    probe.evaluate("el => el.remove()")
