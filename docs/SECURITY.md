@@ -9,8 +9,8 @@ Only fictional data. Native demo services bind to loopback; Compose publishes po
 | Secret disclosure | Ignored .env files, no external API key, generic storage errors | Automated secret scanning and operational secret management |
 | Query injection | SQLAlchemy expressions, parameter binding, literal search escaping | Expanded fuzzing and independent review |
 | Invalid scenario | Finite 0–10 multipliers, unknown-field rejection, bounded JSON proxy body | Traffic rate limits and service-level resource controls |
-| Browser abuse | Fixed proxy paths, no redirects, timeouts, no wildcard CORS, guarded report identity, deny framing/objects and unused device capabilities, no referrer | Full script/style CSP, cross-browser review and deployment threat model |
-| Unauthorized persisted writes | Saving disabled by default; optional bearer identity, analyst-only saves, workspace-scoped catalog/reads/deduplication, synthetic/review assertions, preview digest and web origin guard | Production identity/session lifecycle, full CSP, independent access review and operational controls before shared deployment |
+| Browser abuse | Fixed proxy paths, no redirects, timeouts, no wildcard CORS, guarded report identity, per-response script nonces and resource restrictions, deny framing/objects and unused device capabilities, no referrer | Style-attribute exception, trusted dependency review and deployment threat model |
+| Unauthorized persisted writes | Saving disabled by default; optional bearer identity, analyst-only saves, workspace-scoped catalog/reads/deduplication, synthetic/review assertions, preview digest and web origin guard | Production identity/session lifecycle, independent access review and operational controls before shared deployment |
 | Upload resource exhaustion | 256 KiB input, 1,000 rows, bounded streaming, XLSX expanded-size/member/ratio limits | Concurrency limits, parser isolation and independent adversarial testing |
 | Active workbook content | Values-only XLSX, archive validation, defused XML, formula/macro/link/hidden-content rejection | These checks are not proof of general spreadsheet safety |
 | Stored-file corruption | Immutable snapshot IDs, normalized-storage SHA-256 verified on read, revalidation | Authenticated provenance, storage lifecycle and backup policies |
@@ -26,16 +26,25 @@ The prototype is not approved for internet exposure. Keep SYNTHETIC_IMPORTS_ENAB
 
 ## Browser response policy
 
-The Next.js web server applies these headers across dashboard, API and error paths:
+The Next.js web server applies these baseline headers across dashboard, API and error paths:
 
 - `X-Content-Type-Options: nosniff` and `X-Frame-Options: DENY`.
 - `Referrer-Policy: no-referrer` so navigation and fetch requests do not disclose the page URL through the Referer header. This does not anonymize network traffic or remove URLs from server logs.
 - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()` because the workbench does not need these capabilities. This changes policy for this application, not browser-wide permissions.
-- `Content-Security-Policy: base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'`. This restricts document embedding, objects, base URLs and form destinations. It deliberately does not claim complete script/style injection protection; nonce/hash policy and deployment-specific resource rules remain unfinished.
 
-Integration tests request real success, rejected-method and missing-page responses; Chromium checks its effective device policy and omission of the Referer header. The existing full application/download suite checks compatibility in native and Compose environments. See the [milestone tracker](MILESTONES.md) for actual outcomes. These headers are emitted by Next.js; they are not a claim that a directly exposed FastAPI server or hosting proxy has the same policy. No HSTS or public TLS configuration is claimed for the loopback demo.
+`apps/web/proxy.ts` adds a request-specific Content Security Policy to non-static responses, including API errors, missing pages and prefetch requests. Each response receives 256 bits of fresh randomness encoded as a nonce. Caller-supplied nonce and CSP headers are overwritten before Next.js renders the document. The root layout uses request-time rendering so framework scripts receive that response's nonce.
 
-Configuration follows the official [Next.js headers](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers) and [CSP guidance](https://nextjs.org/docs/app/guides/content-security-policy). Full nonce-based CSP changes rendering requirements and needs separate testing; the baseline policy does not authorize shared saving or internet exposure.
+- Scripts require the nonce and use `strict-dynamic`; inline event-handler attributes are denied. Production does not allow `unsafe-eval` or unrestricted inline scripts.
+- The default resource policy denies unspecified sources. Connections and fonts are limited to the same origin; images may also use data/blob URLs. Objects, frames and workers are denied; base URLs and form destinations are limited to the same origin, and framing is denied.
+- Production style elements require a nonce or a same-origin stylesheet. **Style attributes remain explicitly allowed** because React/Recharts position charts with them. This is an intentional CSS exception, not complete style-injection protection.
+- Development additionally permits script evaluation, inline styles and WebSocket connections for the development tooling. These exceptions are not in the production script/connection policy.
+- Non-static responses use `Cache-Control: no-store`. Do not share/cache nonced HTML at a CDN or turn this application into a static export without redesigning and revalidating the policy. Static assets retain the baseline policy in `next.config.ts`.
+
+Nine added browser cases cover nonce freshness, forged and prefetch headers, script and event-handler blocking, production string compilation, foreign connections and style elements. Script probes use parser-executed test documents carrying the real server response headers; browser-debugger evaluation is not treated as proof of script blocking. The unmodified application suite verifies legitimate workflows. The demo-image job includes these policy cases. See [release readiness](RELEASE_READINESS.md) for exact verified outcomes; the existence of tests does not establish that a run passed.
+
+This policy trusts correctly nonced scripts and scripts they load. It does not protect against a compromised trusted dependency, server or same-origin application code. Independent security review and a deployment-specific threat model remain required. These headers are emitted by Next.js; a directly exposed FastAPI server or hosting proxy must be assessed separately. No HSTS or public TLS configuration is claimed for the loopback demo. Hosting remains deferred and shared saving remains disabled by default.
+
+Configuration follows the official [Next.js headers](https://nextjs.org/docs/app/api-reference/config/next-config-js/headers) and [CSP guidance](https://nextjs.org/docs/app/guides/content-security-policy).
 
 ## Web snapshot origin boundary
 
