@@ -1421,63 +1421,88 @@ def csp_observer(page):
     }""")
 
 
+def load_csp_probe(page, payload):
+    """Let the HTML parser run probes under the real server response policy.
+
+    Debugger evaluation can bypass script restrictions. Replace only the body
+    for this test navigation; retain the actual status and security headers.
+    """
+    policies = []
+
+    def serve_probe(route):
+        response = route.fetch()
+        assert response.status == 200
+        policy = response.headers["content-security-policy"]
+        match = re.search(r"'nonce-([A-Za-z0-9+/]+={0,2})'", policy)
+        assert match, policy
+        nonce = match.group(1)
+        policies.append(policy)
+        observer = (
+            f'<script nonce="{nonce}">'
+            'window.__cspProbe = {violations: [], ran: false, allowed: false};'
+            'document.addEventListener("securitypolicyviolation", event => {'
+            'window.__cspProbe.violations.push(event.effectiveDirective);'
+            '});</script>'
+        )
+        body = (
+            '<!doctype html><html><head><title>CSP verification</title>'
+            + observer + '</head><body>'
+            + payload.replace("__CSP_NONCE__", nonce)
+            + '</body></html>'
+        )
+        route.fulfill(response=response, body=body)
+
+    page.route(f"{BASE_URL}/", serve_probe)
+    try:
+        response = page.reload()
+        assert policies and response is not None
+        assert response.headers["content-security-policy"] == policies[-1]
+    finally:
+        page.unroute(f"{BASE_URL}/", serve_probe)
+
+
 @pytest.mark.parametrize("attack", ["script", "event-handler"])
 def test_browser_blocks_unapproved_script_and_event_handler(page, attack):
-    csp_observer(page)
-    page.evaluate("""attack => {
-      if (attack === 'script') {
-        const script = document.createElement('script');
-        script.textContent = 'window.__cspProbe.ran = true';
-        document.body.append(script);
-      } else {
-        const button = document.createElement('button');
-        button.setAttribute('onclick', 'window.__cspProbe.ran = true');
-        document.body.append(button);
-        button.click();
-        button.remove();
-      }
-    }""", attack)
-    wait_for_browser_condition(page,"window.__cspProbe.violations.length > 0")
+    payload = (
+        '<script>window.__cspProbe.ran = true;</script>'
+        if attack == "script" else
+        '<button onclick="window.__cspProbe.ran = true">Run handler probe</button>'
+    )
+    load_csp_probe(
+        page,
+        '<script nonce="__CSP_NONCE__">'
+        'window.__cspProbe.allowed = true;</script>' + payload,
+    )
+    if attack == "event-handler":
+        page.get_by_role("button", name="Run handler probe", exact=True).click()
+    wait_for_browser_condition(page, "window.__cspProbe.violations.length > 0")
     assert page.evaluate("window.__cspProbe.ran") is False
+    assert page.evaluate("window.__cspProbe.allowed") is True
     violations = page.evaluate("window.__cspProbe.violations")
     expected = "script-src-elem" if attack == "script" else "script-src-attr"
     assert expected in violations or "script-src" in violations
-    # Positive control: the same browser executes a correctly nonced script.
-    page.evaluate("""() => {
-      const script = document.createElement('script');
-      script.nonce = document.querySelector('script[nonce]').nonce;
-      script.textContent = 'window.__cspProbe.allowed = true';
-      document.body.append(script);
-    }""")
-    assert page.evaluate("window.__cspProbe.allowed") is True
-    page.get_by_role("button", name="Toggle light and dark theme").click()
-    expect(page.get_by_role("button", name="Toggle light and dark theme"))\
-        .to_have_attribute("aria-pressed", "true")
+    # Restore the unmodified application and verify its trusted scripts work.
+    page.reload()
+    theme = page.get_by_role("button", name="Toggle light and dark theme")
+    theme.click()
+    expect(theme).to_have_attribute("aria-pressed", "true")
 
 
 def test_browser_blocks_string_compilation_in_production(page):
-    csp_observer(page)
-    page.evaluate("""() => {
-      const button = document.createElement('button');
-      button.id = 'csp-compilation-probe';
-      button.textContent = 'Run CSP compilation probe';
-      document.body.append(button);
-      const script = document.createElement('script');
-      script.nonce = document.querySelector('script[nonce]').nonce;
-      script.textContent =
-        'document.getElementById("csp-compilation-probe").onclick = () => {'
-        + 'window.__cspProbe.allowed = true;'
-        + 'try { window.__cspProbe.ran = new Function("return true")(); }'
-        + 'catch (error) { window.__cspProbe.error = error.name; }'
-        + '};';
-      document.body.append(script);
-    }""")
-    # Run outside debugger evaluation: a real click uses the page's CSP context.
-    page.get_by_role("button", name="Run CSP compilation probe", exact=True).click()
+    load_csp_probe(
+        page,
+        '<script nonce="__CSP_NONCE__">'
+        'window.__cspProbe.allowed = true;'
+        'try { window.__cspProbe.ran = new Function("return true")(); }'
+        'catch (error) { window.__cspProbe.error = error.name; }'
+        '</script>',
+    )
     assert page.evaluate("window.__cspProbe.allowed") is True
     assert page.evaluate("window.__cspProbe.ran") is False
     assert page.evaluate("window.__cspProbe.error") == "EvalError"
-    page.locator('#csp-compilation-probe').evaluate("el => el.remove()")
+    wait_for_browser_condition(
+        page, "window.__cspProbe.violations.includes('script-src')"
+    )
 
 
 def test_browser_blocks_foreign_connections(page):
