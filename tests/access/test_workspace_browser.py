@@ -121,6 +121,9 @@ def page(private_app, private_browser, request):
     tab.set_default_timeout(15000)
     errors = []
     tab.on("pageerror", lambda error: errors.append(str(error)))
+    # Timer tests install the clock before application scripts create timers.
+    if "clock_page" in request.fixturenames:
+        tab.clock.install()
     tab.goto(private_app["url"])
     expect(tab.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
     try:
@@ -272,3 +275,103 @@ def test_proxy_ignores_claimed_workspace_and_user_headers(private_app):
     assert response.status_code == 200
     assert response.json()["workspace"] == private_app["records"][0]["workspace"]
     assert response.json()["subject"] == private_app["records"][0]["subject"]
+
+@pytest.fixture
+def clock_page(page):
+    """The page fixture installs controlled time before navigation for these tests."""
+    return page
+
+
+@pytest.mark.parametrize("width", [1440, 320])
+def test_idle_warning_extend_lock_and_reunlock(clock_page, private_app, width):
+    page = clock_page
+    page.set_viewport_size({"width": width, "height": 1000})
+    unlock(page, private_app)
+    selector = page.get_by_label("Active portfolio", exact=True)
+    selector.select_option(private_app["saved_id"])
+    expect(page.get_by_text("Fictional Private Birch", exact=True)).to_be_visible()
+    page.clock.fast_forward(14 * 60_000 + 1000)
+    warning = page.get_by_label("Workspace access").get_by_role("status")
+    expect(warning).to_contain_text("Unsaved work will be cleared")
+    stay = page.get_by_role("button", name="Stay unlocked", exact=True)
+    expect(stay).to_be_visible()
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    # Keyboard activation extends the session without changing the loaded workspace.
+    stay.focus()
+    page.keyboard.press("Enter")
+    expect(warning).to_have_count(0)
+    expect(selector).to_have_value(private_app["saved_id"])
+    page.clock.fast_forward(14 * 60_000 + 1000)
+    expect(warning).to_be_visible()
+    page.clock.fast_forward(60_000)
+    expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
+    expect(page.get_by_text("Fictional Private Birch", exact=True)).to_have_count(0)
+    expect(selector).to_have_count(0)
+    field = page.get_by_label("Access token", exact=True)
+    expect(field).to_have_value("")
+    expect(field).to_be_focused()
+    expect(page.get_by_text("Workbench locked after 15 minutes", exact=False)).to_be_visible()
+    unlock(page, private_app)
+    expect(selector).to_have_value("")
+    expect(warning).to_have_count(0)
+    page.clock.fast_forward(60_000)
+    expect(selector).to_be_enabled()
+
+
+def test_idle_synthetic_events_do_not_extend_session(clock_page, private_app):
+    page = clock_page
+    unlock(page, private_app)
+    page.clock.fast_forward(14 * 60_000 + 30_000)
+    page.evaluate("""() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', {key: 'a'}));
+        document.dispatchEvent(new PointerEvent('pointerdown'));
+        document.dispatchEvent(new WheelEvent('wheel'));
+    }""")
+    page.clock.fast_forward(31_000)
+    expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
+
+
+@pytest.mark.parametrize("trigger", ["focus", "visibilitychange", "request"])
+def test_idle_suspended_deadline_is_checked_before_resuming(
+    clock_page, private_app, trigger,
+):
+    page = clock_page
+    unlock(page, private_app)
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    # Move wall time without firing timers, as can happen while a tab is suspended.
+    page.clock.set_system_time(page.evaluate("Date.now()") + 16 * 60_000)
+    if trigger == "request":
+        # No trusted input event: the request helper itself must reject expired access.
+        page.get_by_role("button", name="Calculate scenario →", exact=True).evaluate(
+            "element => element.click()"
+        )
+    elif trigger == "focus":
+        page.evaluate("window.dispatchEvent(new Event('focus'))")
+    else:
+        page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+    expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
+    expect(page.get_by_label("Active portfolio", exact=True)).to_have_count(0)
+    assert not any("/api/stress" in url for url in requests)
+
+
+def test_idle_expiry_rejects_late_response(clock_page, private_app):
+    page = clock_page
+    unlock(page, private_app)
+    response = httpx.post(
+        private_app["url"] + "/api/stress",
+        headers={"Authorization": "Bearer " + private_app["tokens"][0]},
+        json={"pd_multiplier": 1.5, "lgd_multiplier": 1.1, "ead_multiplier": 1},
+        timeout=10,
+    )
+    assert response.status_code == 200
+    held = []
+    page.route("**/api/stress*", lambda route: held.append(route))
+    with page.expect_request("**/api/stress*"):
+        page.get_by_role("button", name="Calculate scenario →", exact=True).click()
+    assert len(held) == 1
+    page.clock.set_system_time(page.evaluate("Date.now()") + 16 * 60_000)
+    held[0].fulfill(status=200, content_type="application/json", body=response.text)
+    expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
+    expect(page.get_by_label("Active portfolio", exact=True)).to_have_count(0)
+    expect(page.get_by_label("Access token", exact=True)).to_have_value("")
