@@ -6,7 +6,7 @@ A reproducible tour of the verified educational slice, not a production launch. 
 
 Follow [DEVELOPMENT.md](DEVELOPMENT.md) to start the application and apply migrations/seed. Confirm the API is ready before opening the dashboard. Never present an old screenshot as evidence that the current app is running.
 
-Saving is intentionally disabled by default. The preview, demo portfolio and reports can be shown without enabling it. Demonstrate saving only on a local, isolated instance configured as described in the development guide; it has no authentication or tenant isolation. Never enable it on a shared/public deployment merely to complete this walkthrough.
+Saving is intentionally disabled by default. The preview, demo portfolio and reports can be shown without enabling it. Demonstrate saving only on a local, isolated instance configured as described in the development guide; anonymous local mode has no authentication. Optional workspace tokens, roles and isolation are now implemented and verified; configure a separate disposable token-mode instance as described in [AUTHENTICATION.md](AUTHENTICATION.md) if demonstrating those controls. Production identity and storage operations remain incomplete. Never enable it on a shared/public deployment merely to complete this walkthrough.
 
 ## 1. Explain the problem and boundary
 
@@ -69,15 +69,23 @@ Changing a scenario control or portfolio clears the old result; recalculate befo
 - Calculate a scenario, then change an assumption before downloading. The previous result must clear and must not be offered as a current comparison.
 - If a request genuinely fails, show the visible error and retry. Do not claim a failure was tested merely because a button exists; intentional outage and stale-response cases are exercised by the browser test suite.
 
-## 7. Show independent verification
+## 7. Show automated verification
 
-[Run #34](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863) passed backend, frontend, full-stack Chromium and PostgreSQL container-lifecycle jobs for commit `cb756b6` on 24 October 2026. It recorded 141 backend tests, 19 frontend tests and 77 browser cases passing in each environment. The container job also checked default saving was blocked and verified unchanged evidence after database/application restart and repeat migration/seed. The same browser suite runs in two environments; do not describe that as twice as many distinct cases. All 13 rendered baseline, scenario and literal-label PDF fixture pages were visually reviewed in the browser.
+The latest merged security checkpoint `c30f0266ce4dc719d6cad3c0e391ac25b5f2c7d3` passed [application verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684705) and [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684766) on 2 November 2026. The application workflow includes backend/frontend checks, Chromium, Firefox, WebKit and PostgreSQL lifecycle checks. This is project-authored automated testing, not independent security or model validation. Check [RELEASE_READINESS.md](RELEASE_READINESS.md) for later checkpoints and unresolved work.
+
+The historical PDF-layout checkpoint [run #34](https://github.com/animeshpthk07/AegisRisk/actions/runs/40078175863) passed backend, frontend, full-stack Chromium and PostgreSQL container-lifecycle jobs for commit `cb756b6` on 24 October 2026. It recorded 141 backend tests, 19 frontend tests and 77 browser cases passing in each environment. The container job also checked default saving was blocked and verified unchanged evidence after database/application restart and repeat migration/seed. The same browser suite runs in two environments; do not describe that as twice as many distinct cases. All 13 rendered baseline, scenario and literal-label PDF fixture pages were visually reviewed in the browser.
 
 Open the actual Actions run and relevant logs rather than relying on a badge alone. Synthetic screenshots, traces and reports have seven-day retention and may have expired. The source and test definitions remain available for reproduction. Restart persistence is not a backup or disaster-recovery test, and a dependency audit is not a penetration test.
 
 ## 8. Inspect the synthetic Model Lab
 
 Open **Synthetic Model Lab** and **Load model evidence**. Inspect the 1,800/600/600 row splits, baseline/raw/calibrated metrics and calibration bins. Explain why an artificial generator is not an external banking benchmark. Confirm the example ratios are fictional, then **Estimate fictional event**. The intercept and feature contributions reconstruct raw log-odds, not the calibrated probability. Change any ratio or withdraw consent: the old estimate must clear, while the active portfolio remains unchanged.
+
+## 9. Optional workspace access demonstration
+
+Use a separate isolated fictional instance with disposable tokens configured by its administrator. Show an analyst saving a reviewed snapshot and a viewer being unable to save. Confirm another workspace cannot list, open or export that saved snapshot. These server-enforced boundaries are covered by the access suite; do not expose token values in recordings or logs.
+
+Demonstrate **Lock workbench**: loaded data clears and the access-token field is empty. Refresh also removes in-memory credentials. A browser lock is not server-side token revocation; a lost token must be revoked by the administrator. Automatic inactivity locking is a separate change in PR #3: consult the latest readiness record before describing it as verified or merged. No shared/public persistence is approved by this demonstration.
 
 ## Technical discussion map
 
@@ -86,10 +94,10 @@ Open **Synthetic Model Lab** and **Load model evidence**. Inspect the 1,800/600/
 - **Why immutable snapshots?** Reports can refer to a stable reviewed input set. Preview and save are separate, and every save revalidates the supplied data and review fingerprint.
 - **Why stale-response guards?** A late calculation or export must not be presented as belonging to a different dataset or newer assumptions, including an A → B → A switch.
 - **What does the model learn?** The isolated Model Lab learns an explicitly artificial relationship between four fictional ratios and simulated labels. It uses separate train/calibration/test data and compares held-out metrics with a constant training-prior baseline. This is pipeline evidence, not real-world credit accuracy. See [MODEL_LAB.md](MODEL_LAB.md) and the latest verified run in the tracker.
-- **What remains before a real deployment?** Authentication, tenant isolation, retention/storage controls, broader security/accessibility verification and an approved hosting design. Real financial documents are not supported by the synthetic-only boundary.
+- **What remains before a real deployment?** Enterprise identity and session administration, storage quotas/retention/backup/deletion, broader security/accessibility verification and an approved hosting design. Optional token roles and workspace isolation already exist; their limits are documented in AUTHENTICATION.md. Real financial documents are not supported by the synthetic-only boundary.
 
 ## Honest completion statement
 
 “The verified slice includes synthetic CSV/XLSX validation, reviewed local snapshots, deterministic risk calculations, guarded sensitivity analysis, evidence exports and automated full-stack/container checks. An isolated synthetic training/evaluation demonstration is implemented separately; its current verification status is in the tracker. Baseline and scenario reports are available as JSON, printable HTML and server-generated PDF, with fixture-based visual review. Real-world model validation, production security and hosted release remain incomplete.”
 
-Use [MILESTONES.md](MILESTONES.md) as the detailed record. Do not claim regulatory approval, affiliation with a bank, real-world model accuracy, production readiness or a deployed product.
+Use [MILESTONES.md](MILESTONES.md) and [RELEASE_READINESS.md](RELEASE_READINESS.md) as the detailed records. [PROJECT_PRESENTATION.md](PROJECT_PRESENTATION.md) provides a concise interview pitch and owner-review drafts. Do not claim regulatory approval, affiliation with a bank, real-world model accuracy, production readiness or a deployed product.
