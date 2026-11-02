@@ -7,9 +7,10 @@ flowchart LR
     P --> A[FastAPI / Pydantic]
     A --> V[CSV validator / bounded values-only XLSX decoder]
     V --> R[Decimal risk calculations]
-    V --> S[Explicit review and local-only save gate]
+    V --> S[Explicit review and opt-in save gate]
     S --> D[(Immutable normalized snapshots)]
-    A --> D
+    A --> T[Optional token roles and workspace scope]
+    T --> D
     A --> F[(Seeded fictional facilities)]
     D --> R
     F --> R
@@ -31,8 +32,9 @@ PostgreSQL is the deployment target. SQLite is an explicit local/test fallback, 
 
 - Separate frontend/backend, versioned API, fixed proxy paths. No user-controlled upstream URL; bounded request streams and timeouts.
 - Preview is read-only. CSV/XLSX share validation and calculations. XLSX archives/XML are checked before openpyxl, then only normalized values are retained if explicitly saved.
-- Save is disabled by default. Enabling it is only for a local single-user synthetic demo; no accounts, tenant isolation, global storage quota or retention/deletion controls yet. Never upload customer information.
+- Save is disabled by default. Anonymous local mode is for an isolated single-user fictional demo. Optional administrator-issued tokens provide server-checked viewer/analyst roles and workspace-scoped saved catalogs, deduplication, calculations and exports; see [AUTHENTICATION.md](AUTHENTICATION.md). This is not enterprise identity, MFA or approval for shared persistence: global quotas, retention/deletion operations, backup/restore and independent security review remain open. Never upload customer information.
 - Save revalidates raw bytes against the reviewed fingerprint. Stored content has its own integrity digest and immutable UUID. Equal stored bytes reuse a snapshot. Neither digest is an authenticity signature.
+- Browser credentials stay in memory; refresh, manual lock and rejected access clear the workspace. Per-response nonces and a browser resource policy are verified; chart style attributes remain an explicit exception. [Release readiness](RELEASE_READINESS.md) records the exact source and pending follow-up work.
 - Dataset selection is explicit. Invalid, unknown, disabled or corrupt saved data fails closed instead of falling back to the demo. Reload resets selection, not saved data.
 - Seed/migrations are explicit; the seed never overwrites a nonempty portfolio. Scenario and report requests do not persist changes.
 - Decimal expected-loss calculations supply all totals and deterministic explanations. JSON/chart numbers are presentation values; reports also carry decimal-string evidence and stated precision.
@@ -47,6 +49,6 @@ PostgreSQL is the deployment target. SQLite is an explicit local/test fallback, 
 
 ## Remaining product work
 
-The synthetic model/calibration slice and JSON, printable HTML and server-generated PDF reports are implemented and covered by the verified checkpoints. Real-world model validation, authentication and production security, verified hosting and final career presentation remain unfinished. Read [milestones](MILESTONES.md) for exact verified commits: source presence is not test evidence.
+The synthetic model/calibration slice and JSON, printable HTML and server-generated PDF reports are implemented and covered by the verified checkpoints. Optional token/workspace access and browser script/resource restrictions are also verified. Real-world model validation, enterprise identity and production operations, verified hosting and approved career publication remain unfinished. Read [milestones](MILESTONES.md) for exact verified commits: source presence is not test evidence.
 
-The risk engine loads bounded fictional datasets in memory. Larger real portfolios would require database-side aggregation, pagination, tenancy, access controls and independent domain validation. Readiness checks schema presence, not an expected facility count; an empty portfolio is valid and disclosed.
+The risk engine loads bounded fictional datasets in memory. Larger real portfolios would require database-side aggregation, pagination, production-grade identity and tenancy operations, and independent domain validation. Readiness checks schema presence, not an expected facility count; an empty portfolio is valid and disclosed.
