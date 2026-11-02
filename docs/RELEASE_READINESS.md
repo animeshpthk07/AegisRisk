@@ -8,6 +8,16 @@ AegisRisk is a public MIT educational workbench using fictional INR credit facil
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
 
+## Main-branch integration — verified 2026-11-02
+
+PR #2 merged as `c30f0266ce4dc719d6cad3c0e391ac25b5f2c7d3`. That exact main commit passed [application verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684705) and [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684766). Its final pre-merge source `c86ad833c9a2d5e4b8154d8207d781c5be383959` passed application run #139 and demo run #50. These checks do not establish production approval.
+
+## Automatic inactivity lock — verification pending
+
+[PR #3](https://github.com/animeshpthk07/AegisRisk/pull/3) adds a 15-minute browser inactivity deadline in token mode, a one-minute warning and keyboard-operable extension. Expiry clears credentials and loaded state and aborts pending requests. Wall-clock and monotonic elapsed-time checks run on timers, resume, input and request boundaries; late replies cannot restore an expired local workspace. Anonymous demo mode remains unchanged.
+
+Seven browser cases cover warning/extension/re-unlock at 1440 and 320 pixels, synthetic input, suspended-deadline recovery through focus/visibility/request boundaries, and late responses. Run #146 stopped at a test line-length violation before executing these cases; the demo image passed. Until a completed application run is recorded, this implementation remains unverified. Browser cleanup is not server-side token revocation, enterprise identity or physical-device sleep certification. Hosting remains deferred.
+
 ## Browser script policy — verified 2026-11-02
 
 Source `fb920c2945beb4ed92ef34f7d60cb5a34a5751bb` passed [application run #132](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265512) and [bounded demo image run #46](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265488) on 2026-11-01; their completed results were reviewed in the browser on 2026-11-02. All 14 push/pull-request checks passed before the documentation follow-up.

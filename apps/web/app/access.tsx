@@ -7,6 +7,9 @@ let bearer = '';
 let generation = 0;
 const pending = new Set<AbortController>();
 const LOCK_EVENT = 'aegisrisk:lock';
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const IDLE_WARNING_MS = 60 * 1000;
+let checkInactivity: (() => boolean) | null = null;
 type Identity = { mode: 'local' | 'token'; subject: string; workspace: string; role: 'viewer' | 'analyst' };
 const AccessContext = createContext<Identity | null>(null);
 export function useAccess() { return useContext(AccessContext); }
@@ -22,6 +25,7 @@ export async function workbenchFetch(path: string, init: RequestInit = {}): Prom
   if (!path.startsWith('/api/') || url.origin !== window.location.origin || !url.pathname.startsWith('/api/')) {
     throw new Error('Workbench requests must stay on this site.');
   }
+  if (checkInactivity?.()) throw new DOMException('Workspace locked', 'AbortError');
   const epoch = generation;
   const controller = new AbortController();
   pending.add(controller);
@@ -31,7 +35,7 @@ export async function workbenchFetch(path: string, init: RequestInit = {}): Prom
   try {
     const response = await window.fetch(path, { ...init, headers, credentials: 'omit', cache: 'no-store',
       redirect: 'error', signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15000), ...(init.signal ? [init.signal] : [])]) });
-    if (epoch !== generation) throw new DOMException('Workspace locked', 'AbortError');
+    if (checkInactivity?.() || epoch !== generation) throw new DOMException('Workspace locked', 'AbortError');
     if (response.status === 401) window.dispatchEvent(new Event(LOCK_EVENT));
     return response;
   } finally { pending.delete(controller); }
@@ -61,6 +65,8 @@ export default function AccessGate({ children }: { children: ReactNode }) {
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [idleWarning, setIdleWarning] = useState(false);
+  const extendSession = useRef<(() => void) | null>(null);
   const request = useRef<AbortController | null>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -78,9 +84,13 @@ export default function AccessGate({ children }: { children: ReactNode }) {
   }, [attempt]);
 
   useEffect(() => {
-    function lock() {
+    function lock(event?: Event) {
       request.current?.abort(); forgetCredential(); setIdentity(null); setCredential('');
-      setBusy(false); setMessage('Workbench locked. Enter a valid token to continue.'); setStatus('locked');
+      setBusy(false); setIdleWarning(false);
+      setMessage(event instanceof CustomEvent && event.detail === 'idle'
+        ? 'Workbench locked after 15 minutes of inactivity. Enter your token to continue.'
+        : 'Workbench locked. Enter a valid token to continue.');
+      setStatus('locked');
     }
     function leaving() { if (bearer) lock(); }
     window.addEventListener(LOCK_EVENT, lock);
@@ -88,6 +98,53 @@ export default function AccessGate({ children }: { children: ReactNode }) {
     return () => { window.removeEventListener(LOCK_EVENT, lock); window.removeEventListener('pagehide', leaving); };
   }, []);
   useEffect(() => { if (status === 'locked') input.current?.focus(); }, [status]);
+
+  useEffect(() => {
+    if (status !== 'ready' || identity?.mode !== 'token') return;
+    let lastWall = Date.now();
+    let lastMonotonic = performance.now();
+    let finished = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    function check() {
+      if (finished) return true;
+      // Wall time covers sleeping tabs; monotonic time prevents clock rollback extending access.
+      const elapsed = Math.max(Date.now() - lastWall, performance.now() - lastMonotonic);
+      if (timer !== undefined) clearTimeout(timer);
+      if (elapsed >= IDLE_TIMEOUT_MS) {
+        finished = true;
+        window.dispatchEvent(new CustomEvent(LOCK_EVENT, { detail: 'idle' }));
+        return true;
+      }
+      const warning = elapsed >= IDLE_TIMEOUT_MS - IDLE_WARNING_MS;
+      setIdleWarning(warning);
+      timer = setTimeout(check, Math.max(1,
+        (warning ? IDLE_TIMEOUT_MS : IDLE_TIMEOUT_MS - IDLE_WARNING_MS) - elapsed));
+      return false;
+    }
+    function extend() {
+      // An event arriving after suspension must not revive an expired session.
+      if (check() || document.visibilityState === 'hidden') return;
+      lastWall = Date.now(); lastMonotonic = performance.now(); check();
+    }
+    function activity(event: Event) { if (event.isTrusted) extend(); }
+    const events = ['pointerdown', 'keydown', 'wheel'];
+    checkInactivity = check; extendSession.current = extend;
+    for (const event of events) document.addEventListener(event, activity, { capture: true, passive: true });
+    document.addEventListener('visibilitychange', check);
+    window.addEventListener('focus', check);
+    window.addEventListener('pageshow', check);
+    check();
+    return () => {
+      finished = true;
+      if (timer !== undefined) clearTimeout(timer);
+      if (checkInactivity === check) checkInactivity = null;
+      extendSession.current = null;
+      for (const event of events) document.removeEventListener(event, activity, true);
+      document.removeEventListener('visibilitychange', check);
+      window.removeEventListener('focus', check);
+      window.removeEventListener('pageshow', check);
+    };
+  }, [status, identity]);
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -108,7 +165,9 @@ export default function AccessGate({ children }: { children: ReactNode }) {
 
   if (status === 'ready' && identity) return <AccessContext.Provider value={identity}>
     {identity.mode === 'token' && <aside className="access-session" aria-label="Workspace access">
-      <span>{identity.role === 'viewer' ? 'Read-only workspace' : 'Analyst workspace'} · Private access</span>
+      <span>{identity.role === 'viewer' ? 'Read-only workspace' : 'Analyst workspace'} · Locks after 15 minutes idle</span>
+      {idleWarning && <span role="status">Locks in under a minute. Unsaved work will be cleared.</span>}
+      {idleWarning && <button type="button" onClick={() => extendSession.current?.()}>Stay unlocked</button>}
       <button type="button" onClick={() => window.dispatchEvent(new Event(LOCK_EVENT))}>Lock workbench</button>
     </aside>}
     {children}
@@ -125,7 +184,7 @@ export default function AccessGate({ children }: { children: ReactNode }) {
       <input ref={input} id="access-token" type="password" value={credential} required minLength={43} maxLength={43}
         pattern="[A-Za-z0-9_-]{43}" autoComplete="off" spellCheck={false} autoCapitalize="none"
         aria-describedby="access-help" disabled={busy} onChange={event => setCredential(event.target.value)}/>
-      <p id="access-help">Use the token supplied by your workspace administrator. It stays in memory for this tab and is cleared on refresh or lock.</p>
+      <p id="access-help">Use the token supplied by your workspace administrator. It stays in memory for this tab and is cleared on refresh or lock. The workbench locks after 15 minutes of inactivity, with a one-minute warning.</p>
       <button type="submit" disabled={busy || !/^[A-Za-z0-9_-]{43}$/.test(credential)}>{busy ? 'Checking token…' : 'Unlock workspace'}</button>
       <p className="muted">Locking clears this screen; an administrator must revoke a lost token.</p>
     </form>}
