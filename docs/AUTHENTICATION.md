@@ -42,11 +42,17 @@ The access screen checks the API before mounting the dashboard. Token-mode users
 
 All dashboard, upload, model and report requests use the same restricted same-origin request helper. Credentials are forwarded explicitly to the fixed backend, without cookies or caller identity headers; redirects are rejected. Responses are non-cacheable. The UI is not an authorization boundary: every API request is verified separately.
 
-Locking clears the token, cancels pending requests, unmounts the dashboard and clears its loaded state. A 401 also locks the workbench. Locking is local cleanup, **not server-side revocation**; a copied token remains valid until expiry or administrator revocation. Downloaded reports remain wherever the user saved them. Closing/navigating away clears tab memory, but this does not promise forensic erasure. A token expires on the next server request; there is no inactivity timer or immediate remote screen-clearing guarantee.
+Locking clears the token, cancels pending requests, unmounts the dashboard and clears its loaded state. A 401 also locks the workbench. Locking is local cleanup, **not server-side revocation**; a copied token remains valid until expiry or administrator revocation. Downloaded reports remain wherever the user saved them. Closing/navigating away clears tab memory, but this does not promise forensic erasure. The server checks token expiry on every request; there is no immediate remote screen-clearing guarantee.
+
+Token-mode tabs also lock after 15 minutes without trusted keyboard, pointer-down or wheel activity. A status message appears during the final minute with a **Stay unlocked** button, and the unlock screen discloses the timeout. Extending before expiry starts another 15-minute window without changing the active portfolio. Anonymous local mode has no inactivity timer.
+
+The deadline uses both wall and monotonic elapsed time. The tab checks it on timers, focus/visibility restoration, before accepting new activity, and before/after workbench requests. A delayed timer or returning from suspension cannot revive already-expired access. Background requests and synthetic input events do not reset the deadline. Locking uses the same credential/state cleanup as the manual lock; unsaved work is discarded. Browser/OS suspension can delay visible cleanup until execution resumes. This browser timer does not revoke a bearer token or implement a server-side session policy.
 
 ## Verification and limits
 
 API tests cover all data-route authentication, malformed/duplicate credentials, expiry/revocation, invalid configuration, forged identity, role restrictions, workspace catalogs/deduplication, eight foreign report/calculation paths, legacy isolation and migration rollback refusal. Separate full-stack tests start a fresh token-mode API/database/web process and exercise real browser/proxy/API workflows on Chromium, Firefox and WebKit. Runtime test tokens are disposable; access tests deliberately omit request tracing so tokens do not enter trace artifacts.
+
+Seven additional browser cases exercise warning/keyboard extension and cleanup at 1440/320px, synthetic input rejection, resumed-deadline checks at focus/visibility/request boundaries, and rejection of a late successful response. Controlled clocks are installed before application navigation. These cases simulate elapsed time and resume events; they are not physical-device sleep or screen-reader certification.
 
 See [RELEASE_READINESS.md](RELEASE_READINESS.md) for the actual verified commit and run. Source or test presence alone is not proof of a passing run.
 
