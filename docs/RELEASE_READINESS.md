@@ -1,12 +1,26 @@
 # Release readiness
 
-Updated 2026-10-30. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-11-02. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
-AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The published educational preview remains pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. The later verified development checkpoint below records the additional snapshot-origin protection and demo-test reliability work.
+AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The published educational preview remains pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. The later verified development checkpoints below record workspace access, browser script policy and demo-test reliability work.
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
+
+## Browser script policy — verified 2026-11-02
+
+Source `fb920c2945beb4ed92ef34f7d60cb5a34a5751bb` passed [application run #132](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265512) and [bounded demo image run #46](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265488) on 2026-11-01; their completed results were reviewed in the browser on 2026-11-02. All 14 push/pull-request checks passed before the documentation follow-up.
+
+- All six application jobs passed: backend, frontend, Chromium, Firefox, WebKit and PostgreSQL lifecycle. Backend recorded **190 passing tests**, one dependency deprecation warning and no known vulnerabilities in that dated audit. Chromium recorded **111 workflow cases plus 11 access cases**. The other engines passed their configured suites; the existing Chromium-only permissions inspection remains explicitly skipped outside Chromium.
+- The bounded demo passed **41 reused browser cases plus four runtime cases**, startup restrictions, restart and fresh-container recovery. Repeated cases across engines, environments and events are not additional distinct coverage.
+- Per-response random nonces, request-time rendering, caller-header overwrite, script/event-handler restrictions and resource rules are implemented. Nine policy cases check real response headers and browser enforcement. Parser-executed script probes retain the actual server CSP; debugger evaluation is not used as proof that scripts are blocked. The unchanged application workflows check compatibility.
+- Four Chromium overview captures at 1440/320 pixels in dark/light themes were reviewed from run #132. The captured controls and text remain readable without overlapping panels. This is a dated overview review, not every screen, screen-reader, zoom or physical-device certification.
+- The November 1 audit found seven advisories in the PDF inspection development dependency `pypdf==6.21.2`. Pinning `6.21.4` resolved the audit findings; the 190 backend tests and PDF fixture generation passed. Production PDF generation still uses ReportLab. No claim is made about vulnerabilities discovered after this audit.
+
+Earlier runs exposed an API cache-header mismatch and test-driver problems: in-page polling used string compilation, debugger-injected scripts did not reliably exercise page policy, and a test button was covered by the application sidebar. The API retains its exact `no-store` contract; driver-side polling and parser-executed probes fix the tests without removing restrictions or assertions. Failed and superseded runs remain in history.
+
+Style attributes remain allowed for chart positioning. Correctly nonced scripts and their dependencies remain trusted. Production identity, idle locking, quotas, retention/backup/deletion operations and independent security/model review remain incomplete. See [SECURITY.md](SECURITY.md). Hosting remains deferred and no real credentials were issued. This checkpoint does not replace the source pinned by v0.1.0-preview.1 or declare all five phases complete.
 
 ## Optional workspace access — verified 2026-10-30
 
@@ -43,7 +57,7 @@ The initial comparison used NextURL, whose loopback normalization rejected valid
 | PDF layout | Rendered fixture pages reviewed for readable text, pagination and tables | All 13 pages reviewed for run #34 on 2026-10-24; review again after layout changes |
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
 | Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. The same workflows also pass in Firefox and WebKit; screen-reader, browser zoom and physical-device validation remain pending |
-| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Limited token/workspace slice verified in run #112; production identity, full CSP, quotas, storage lifecycle and independent security review remain open |
+| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Token/workspace slice verified in run #112 and nonce/resource policy in run #132; style-attribute exception, production identity, quotas, storage lifecycle and independent security review remain open |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
 | Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough and educational pre-release published; full product release and approved LinkedIn launch remain pending |

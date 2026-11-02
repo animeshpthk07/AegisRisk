@@ -1,10 +1,18 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-10-30. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-11-02. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
 The frontend-to-backend-to-database flow was verified locally. The foundation source is now published at https://github.com/animeshpthk07/AegisRisk. Current work uses VS Code for the Web and GitHub in the visible browser, as requested. The local preview is not a public deployment.
+
+### Browser script policy checkpoint — verified 2026-11-02
+
+Source `fb920c2945beb4ed92ef34f7d60cb5a34a5751bb` passed all six application jobs in [run #132](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265512), and [demo run #46](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265488). All 14 push/PR checks passed before the documentation follow-up. Backend: 190 tests, one dependency warning and a clean dated audit. Chromium: 111 workflow cases plus 11 access cases. Firefox, WebKit and PostgreSQL lifecycle also passed. The bounded demo passed 41 reused browser cases and four runtime cases, including recovery. Repeated coverage is not additional distinct tests.
+
+The web app now renders fresh script nonces per response, overwrites forged nonce/CSP request headers and restricts scripts, event handlers, compilation and resource sources. Nine new cases exercise headers and browser enforcement; parser-based probes avoid debugger privileges. The earlier cache-header/polling/probe failures were corrected without weakening application restrictions. The PDF inspection development dependency was updated to pypdf 6.21.4 after the November 1 audit reported seven advisories against 6.21.2. ReportLab production generation is unchanged.
+
+Four overview captures (1440/320 pixels, dark/light) were reviewed from run #132 on November 2. This covers the captured overview, not every screen or accessibility certification. Style attributes remain allowed for chart positioning; trusted dependencies, enterprise identity/session controls, storage operations and independent validation remain open. Hosting is deferred. This is a development checkpoint, not completion of all five phases or a replacement of the published preview. See [release readiness](RELEASE_READINESS.md) and [security boundaries](SECURITY.md).
 
 ### Workspace access checkpoint — verified 2026-10-30
 
@@ -231,7 +239,7 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON, printable HTML and PDF downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
-| M9 Security | In progress; optional workspace access verified (run #112) | Token identity, roles, workspace isolation, migration guards and browser lock flow pass alongside existing controls; production identity, full CSP and operational controls remain incomplete |
+| M9 Security | In progress; workspace access and nonce policy verified (runs #112/#132) | Token identity, roles, workspace isolation and browser script/resource policy pass; style-attribute exception, production identity/session controls, storage operations and independent review remain open |
 | M10 Full verification | Partial | Backend/frontend and real workflows pass in Chromium, Firefox and WebKit; Compose browser/restart lifecycle passes; screen-reader, zoom, physical-device and broader security verification remain pending |
 | M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
 | M12 Release | Educational preview published; full product incomplete | v0.1.0-preview.1 pins the source verified by application #70 and demo #5; hosting deferred and broader acceptance gaps remain |
