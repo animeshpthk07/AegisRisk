@@ -310,7 +310,9 @@ def test_idle_warning_extend_lock_and_reunlock(clock_page, private_app, width):
     field = page.get_by_label("Access token", exact=True)
     expect(field).to_have_value("")
     expect(field).to_be_focused()
-    expect(page.get_by_text("Workbench locked after 15 minutes", exact=False)).to_be_visible()
+    expect(
+        page.get_by_text("Workbench locked after 15 minutes", exact=False)
+    ).to_be_visible()
     unlock(page, private_app)
     expect(selector).to_have_value("")
     expect(warning).to_have_count(0)
