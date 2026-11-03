@@ -20,7 +20,7 @@ from .imports import router as import_router
 from .model_lab import router as model_router
 from .models import Facility, SavedPortfolio
 from .pdf_report import pdf_envelope
-from .risk import expected_loss, summarize
+from .risk import expected_loss, portfolio_analytics, summarize
 from .snapshots import load_rows
 from .snapshots import router as snapshot_router
 
@@ -104,6 +104,7 @@ def portfolio_payload(rows, dataset_id):
         "synthetic": True,
         "facilities": [serialize(row) for row in rows],
         "summary": summary,
+        "analytics": portfolio_analytics(rows),
         "segments": [
             {
                 "industry": key,
