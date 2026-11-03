@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated 2026-11-02. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-11-03. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
@@ -8,15 +8,25 @@ AegisRisk is a public MIT educational workbench using fictional INR credit facil
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
 
+## Combined main integration — verified 2026-11-03
+
+[PR #3](https://github.com/animeshpthk07/AegisRisk/pull/3) and [PR #4](https://github.com/animeshpthk07/AegisRisk/pull/4) are merged. Combined main commit `f17650ec74aee37b5c20bdeebcf346c481ab2488` passed all six jobs in [application run #160](https://github.com/animeshpthk07/AegisRisk/actions/runs/41537535832): backend, frontend, Chromium, Firefox, WebKit and PostgreSQL lifecycle. The preceding PR #3 merge `de105e9605f8fc4d9d0d4101d4ee0a63cb701082` passed [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41537328044). PR #4 changes documentation only; the demo was not rerun for its merge. The earlier main application run was superseded and cancelled, not relabelled successful.
+
+Architecture and demonstration guidance now describe optional workspace access accurately. [PROJECT_PRESENTATION.md](PROJECT_PRESENTATION.md) contains a walkthrough, CV bullets and draft LinkedIn copy. These are saved reviewer materials; the LinkedIn post is not published or approved. Production identity, storage operations, independent validation and the remaining accessibility checks are still open. Hosting remains deferred by owner decision.
+
 ## Main-branch integration — verified 2026-11-02
 
 PR #2 merged as `c30f0266ce4dc719d6cad3c0e391ac25b5f2c7d3`. That exact main commit passed [application verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684705) and [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41443684766). Its final pre-merge source `c86ad833c9a2d5e4b8154d8207d781c5be383959` passed application run #139 and demo run #50. These checks do not establish production approval.
 
-## Automatic inactivity lock — verification pending
+## Automatic inactivity lock — verified 2026-11-03
 
-[PR #3](https://github.com/animeshpthk07/AegisRisk/pull/3) adds a 15-minute browser inactivity deadline in token mode, a one-minute warning and keyboard-operable extension. Expiry clears credentials and loaded state and aborts pending requests. Wall-clock and monotonic elapsed-time checks run on timers, resume, input and request boundaries; late replies cannot restore an expired local workspace. Anonymous demo mode remains unchanged.
+[PR #3](https://github.com/animeshpthk07/AegisRisk/pull/3), source `8a232dbbe19526962bcfe08c1e9c091af1f9a444`, passed [application verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41492180418) and [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41492180561). Results were reviewed on 2026-11-03. Backend recorded 190 passing tests with one dependency warning; frontend recorded 19 passing tests. Chromium recorded 111 workflow cases and 18 access cases; Firefox and WebKit each recorded 110 workflow cases, one existing Chromium-only inspection skip and 18 access cases. Builds, typecheck, audits and PostgreSQL lifecycle checks passed. Demo verification recorded 41 reused browser cases plus four runtime cases. Repeated engines and environments are not additional distinct tests.
 
-Seven browser cases cover warning/extension/re-unlock at 1440 and 320 pixels, synthetic input, suspended-deadline recovery through focus/visibility/request boundaries, and late responses. Run #146 stopped at a test line-length violation before executing these cases; the demo image passed. Until a completed application run is recorded, this implementation remains unverified. Browser cleanup is not server-side token revocation, enterprise identity or physical-device sleep certification. Hosting remains deferred.
+Token-mode tabs lock after 15 minutes of inactivity with a one-minute warning and keyboard-operable extension. Expiry clears credentials and loaded state and aborts pending requests. Wall-clock and monotonic checks run at timer, resume, activity and request boundaries. Anonymous local mode remains unchanged.
+
+Seven added cases cover warning/extension/re-unlock at 1440 and 320 pixels, synthetic input, focus/visibility/request resume boundaries and rejection of a late response. Initial checks stopped at a long assertion and then exposed an incorrect standalone-text selector and an initial-load race in the test driver. The correction selects the actual facility row and waits for the loaded dashboard before advancing time; assertions and application restrictions were retained. Earlier failures remain visible.
+
+This verifies browser cleanup, not server-side token revocation, enterprise identity, physical-device sleep or screen-reader behavior. Hosting remains deferred. These results do not declare all five project phases complete or change the source pinned by the published educational preview.
 
 ## Browser script policy — verified 2026-11-02
 
@@ -67,10 +77,10 @@ The initial comparison used NextURL, whose loopback normalization rejected valid
 | PDF layout | Rendered fixture pages reviewed for readable text, pagination and tables | All 13 pages reviewed for run #34 on 2026-10-24; review again after layout changes |
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
 | Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. The same workflows also pass in Firefox and WebKit; screen-reader, browser zoom and physical-device validation remain pending |
-| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Token/workspace slice verified in run #112 and nonce/resource policy in run #132; style-attribute exception, production identity, quotas, storage lifecycle and independent security review remain open |
+| Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Token/workspace slice verified in run #112, nonce/resource policy in run #132 and inactivity cleanup in run #160; style-attribute exception, production identity, quotas, storage lifecycle and independent security review remain open |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
-| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough and educational pre-release published; full product release and approved LinkedIn launch remain pending |
+| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | Walkthrough and educational pre-release published; presentation/CV/LinkedIn drafts saved in PROJECT_PRESENTATION.md; full product release and approved LinkedIn launch remain pending |
 
 Run #50 recorded 141 backend tests (one dependency deprecation warning), 19 frontend tests and 90 Chromium cases in each of two environments. Native browser tests passed in 104.15s and Compose/PostgreSQL browser tests in 105.66s. The two browser runs exercise the same cases and must not be counted as 180 distinct cases. Both dependency audits reported no known vulnerabilities at this checkpoint; these are dated checks. CI artifacts expire after seven days; preserve only synthetic release evidence needed for reproducibility.
 
@@ -113,7 +123,7 @@ A read-only public demonstration does not complete the authenticated workbench. 
 2. Keep the verified demo image, provider configuration and cost/access proposal in GitHub; hosting remains deferred by owner decision.
 3. Resume deployment only if the owner explicitly reopens it; then confirm current provider terms and any required account, spending or access approval, deploy and test the real URL.
 4. Keep the published educational preview and its limitations accurate; create future releases only when their stated acceptance criteria pass.
-5. Prepare the final project presentation. Show the exact LinkedIn copy to the owner before publishing, as requested.
+5. Keep the saved project presentation current. Show the exact LinkedIn copy to the owner before publishing, as requested.
 
 A Render Free proposal with a $0 budget is documented, but it is not activated. Provider/account, domain and operations ownership must be confirmed only if deployment is reopened. No hosting purchase or new security-sensitive access is authorized by this document. Synthetic model performance must remain labelled synthetic; it cannot be presented as bank validation or real-world hiring/credit-decision readiness.
 
