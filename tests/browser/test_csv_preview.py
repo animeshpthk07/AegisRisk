@@ -1549,3 +1549,72 @@ def test_style_elements_require_nonce_but_chart_attributes_work(page):
         "el => getComputedStyle(el).getPropertyValue('--csp-probe').trim()"
     ) == "approved"
     probe.evaluate("el => el.remove()")
+
+
+@pytest.mark.parametrize("width", [1440, 320])
+def test_model_threshold_matrix_matches_api_and_resets(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    with page.expect_response(
+        lambda response: response.url == f"{BASE_URL}/api/model-card"
+    ) as pending:
+        panel = load_model_lab(page)
+    card = pending.value.json()
+    analysis = panel.get_by_role("region", name="Threshold analysis", exact=True)
+    selector = analysis.get_by_label("Evaluation threshold", exact=True)
+    matrix = analysis.get_by_role("table", name="Synthetic confusion matrix")
+    sensitivity = analysis.get_by_role("table", name="Synthetic threshold sensitivity")
+    expect(selector).to_have_value("0.5")
+    expect(sensitivity.get_by_role("row")).to_have_count(8)
+    for row in card["threshold_analysis"]["rows"]:
+        value = str(row["threshold"]).rstrip("0").rstrip(".")
+        selector.select_option(value or "0")
+        for label, key in (
+            ("TP", "true_positive"), ("FN", "false_negative"),
+            ("FP", "false_positive"), ("TN", "true_negative"),
+        ):
+            expect(matrix.get_by_role(
+                "cell", name=f"{label}: {row[key]}", exact=True
+            )).to_be_visible()
+    expect(sensitivity).to_contain_text("N/A")
+    # The native select remains keyboard-operable at the smallest supported width.
+    selector.focus()
+    selector.press("Home")
+    expect(selector).to_have_value("0")
+    expect(analysis).to_contain_text("600 of 600 fictional profiles flagged")
+    assert page.evaluate(
+        "document.documentElement.scrollWidth <= document.documentElement.clientWidth"
+    )
+    load_model_lab(page)
+    expect(selector).to_have_value("0.5")
+    expect(panel.get_by_role(
+        "button", name="Estimate fictional event"
+    )).to_be_disabled()
+
+
+@pytest.mark.parametrize("failure", ["missing", "counts", "rates", "grid"])
+def test_model_threshold_corruption_rejected_then_retry(page, failure):
+    response = httpx.get(f"{BASE_URL}/api/model-card", timeout=15)
+    response.raise_for_status()
+    invalid = response.json()
+    if failure == "missing":
+        invalid.pop("threshold_analysis")
+    elif failure == "counts":
+        invalid["threshold_analysis"]["rows"][0]["true_positive"] += 1
+    elif failure == "rates":
+        invalid["threshold_analysis"]["rows"][0]["recall"] = None
+    else:
+        invalid["threshold_analysis"]["rows"][0]["threshold"] = 0.5
+    page.route("**/api/model-card", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(invalid),
+    ))
+    page.get_by_role("button", name="Load model evidence", exact=True).click()
+    panel = page.get_by_role("region", name="Synthetic Model Lab", exact=True)
+    expect(panel.get_by_role("alert")).to_contain_text("Invalid model evidence")
+    expect(panel.get_by_role("table")).to_have_count(0)
+    page.unroute("**/api/model-card")
+    load_model_lab(page)
+    expect(panel.get_by_role(
+        "table", name="Synthetic confusion matrix"
+    )).to_be_visible()
+    expect(panel.get_by_role("alert")).to_have_count(0)
+
