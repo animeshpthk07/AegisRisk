@@ -80,6 +80,36 @@ def metrics(y, probabilities):
     }
 
 
+def threshold_sensitivity(y, probabilities):
+    """Fixed descriptive thresholds; never select a lending policy on test data."""
+    y = np.asarray(y)
+    probabilities = np.asarray(probabilities, dtype=float)
+    if (
+        y.ndim != 1 or probabilities.ndim != 1 or len(y) == 0
+        or len(y) != len(probabilities) or not np.isin(y, [0, 1]).all()
+        or not np.isfinite(probabilities).all()
+        or ((probabilities < 0) | (probabilities > 1)).any()
+    ):
+        raise ValueError("Use nonempty aligned binary labels and finite probabilities")
+    rows = []
+    for threshold in (0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0):
+        positive = probabilities >= threshold
+        tp = int((positive & (y == 1)).sum())
+        fp = int((positive & (y == 0)).sum())
+        fn = int((~positive & (y == 1)).sum())
+        tn = int((~positive & (y == 0)).sum())
+        rows.append({
+            "threshold": threshold,
+            "true_positive": tp, "false_positive": fp,
+            "false_negative": fn, "true_negative": tn,
+            "flagged": tp + fp, "flagged_rate": (tp + fp) / len(y),
+            "precision": tp / (tp + fp) if tp + fp else None,
+            "recall": tp / (tp + fn) if tp + fn else None,
+            "false_positive_rate": fp / (fp + tn) if fp + tn else None,
+        })
+    return rows
+
+
 def reliability_bins(y, probabilities):
     indices = np.minimum((probabilities * 10).astype(int), 9)
     return [
@@ -131,6 +161,12 @@ def train_model():
         "calibration": "Frozen trained pipeline; sigmoid fitted on calibration rows only",
         "evaluation": "Untouched 600-row synthetic test split; no model selection on test",
         "metrics": {name: metrics(y[test], p) for name, p in probabilities.items()},
+        "threshold_analysis": {
+            "model": "calibrated_logistic", "positive_label": 1,
+            "rule": "probability >= threshold", "default_threshold": 0.5,
+            "purpose": "Fixed descriptive grid, not selected on test performance",
+            "rows": threshold_sensitivity(y[test], probabilities["calibrated_logistic"]),
+        },
         "calibration_bins": reliability_bins(y[test], probabilities["calibrated_logistic"]),
         "versions": {name: version(name) for name in ("scikit-learn", "numpy", "scipy")},
         "limitations": [

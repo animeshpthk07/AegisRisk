@@ -11,11 +11,18 @@ const fields = [
 const metrics = ['roc_auc', 'average_precision', 'brier_score', 'log_loss'] as const;
 const models = ['training_prior', 'raw_logistic', 'calibrated_logistic'] as const;
 type Feature = typeof fields[number]['name'];
+type ThresholdRow = {
+  threshold: number; true_positive: number; false_positive: number;
+  false_negative: number; true_negative: number; flagged: number; flagged_rate: number;
+  precision: number | null; recall: number | null; false_positive_rate: number | null;
+};
+const thresholds = [0, 0.1, 0.2, 0.3, 0.5, 0.7, 1] as const;
 type ModelCard = {
   schema_version: string; model_id: string; synthetic: boolean; portfolio_integration: boolean;
   warning: string; dataset_sha256: string;
   splits: Record<string, { rows: number; events: number; event_rate: number; ids_sha256: string }>;
   metrics: Record<typeof models[number], Record<typeof metrics[number], number>>;
+  threshold_analysis: { model: string; positive_label: number; rule: string; default_threshold: number; rows: ThresholdRow[] };
   calibration_bins: { lower: number; upper: number; count: number; mean_prediction: number | null; observed_rate: number | null }[];
   limitations: string[]; versions: Record<string, string>;
 };
@@ -28,7 +35,31 @@ type Prediction = {
 const initial = Object.fromEntries(fields.map(field => [field.name, field.initial])) as Record<Feature, string>;
 const pct = (value: number) => (value * 100).toFixed(2) + '%';
 
+function validThresholdAnalysis(card: ModelCard) {
+  const analysis = card.threshold_analysis;
+  const split = card.splits?.test;
+  if (!analysis || analysis.model !== 'calibrated_logistic' || analysis.positive_label !== 1 ||
+      analysis.rule !== 'probability >= threshold' || analysis.default_threshold !== 0.5 ||
+      !split || !Number.isSafeInteger(split.rows) || split.rows <= 0 ||
+      !Number.isSafeInteger(split.events) || split.events < 0 || split.events > split.rows ||
+      !Array.isArray(analysis.rows) || analysis.rows.length !== thresholds.length) return false;
+  const ratioMatches = (actual: number | null, numerator: number, denominator: number) =>
+    denominator === 0 ? actual === null : typeof actual === 'number' && Number.isFinite(actual) &&
+      Math.abs(actual - numerator / denominator) < 1e-10;
+  return analysis.rows.every((row, index) => {
+    if (!row || row.threshold !== thresholds[index]) return false;
+    const { true_positive: tp, false_positive: fp, false_negative: fn, true_negative: tn } = row;
+    const previous = analysis.rows[index - 1];
+    return [tp, fp, fn, tn, row.flagged].every(n => Number.isSafeInteger(n) && n >= 0 && n <= split.rows) &&
+      tp + fn === split.events && fp + tn === split.rows - split.events &&
+      row.flagged === tp + fp && (!previous || (tp <= previous.true_positive && fp <= previous.false_positive)) &&
+      ratioMatches(row.flagged_rate, tp + fp, split.rows) && ratioMatches(row.precision, tp, tp + fp) &&
+      ratioMatches(row.recall, tp, tp + fn) && ratioMatches(row.false_positive_rate, fp, fp + tn);
+  });
+}
+
 export default function ModelLab() {
+  const [threshold, setThreshold] = useState(0.5);
   const [card, setCard] = useState<ModelCard | null>(null);
   const [cardBusy, setCardBusy] = useState(false);
   const [cardError, setCardError] = useState('');
@@ -57,10 +88,10 @@ export default function ModelLab() {
           evidence.synthetic !== true || evidence.portfolio_integration !== false ||
           !models.every(name => metrics.every(metric => Number.isFinite(evidence.metrics?.[name]?.[metric]))) ||
           !['train', 'calibration', 'test'].every(name => Number.isInteger(evidence.splits?.[name]?.rows)) ||
-          !Array.isArray(evidence.calibration_bins) || !Array.isArray(evidence.limitations)) {
+          !validThresholdAnalysis(evidence) || !Array.isArray(evidence.calibration_bins) || !Array.isArray(evidence.limitations)) {
         throw new Error('Invalid model evidence. Nothing is displayed; please retry.');
       }
-      setCard(evidence);
+      setThreshold(0.5); setCard(evidence);
     } catch (err) {
       if (!controller.signal.aborted && cardAbort.current === controller) setCardError(err instanceof Error ? err.message : 'Model evidence unavailable.');
     } finally {
@@ -98,6 +129,7 @@ export default function ModelLab() {
       if (predictAbort.current === controller) { setBusy(false); predictAbort.current = null; }
     }
   }
+  const selectedThreshold = card?.threshold_analysis.rows.find(row => row.threshold === threshold);
   return <section id="model-lab" className="panel" aria-label="Synthetic Model Lab">
     <p className="eyebrow">MODEL LAB / SYNTHETIC RESEARCH</p>
     <h2>Inspect a model. Don’t mistake it for a bank.</h2>
@@ -110,6 +142,32 @@ export default function ModelLab() {
       <div className="table-scroll"><table aria-label="Held-out synthetic model metrics"><caption>Untouched synthetic test data · higher AUC / AP, lower Brier / log loss are better</caption><thead><tr><th>Model</th>{metrics.map(metric => <th key={metric}>{metric.replaceAll('_', ' ')}</th>)}</tr></thead><tbody>{models.map(name => <tr key={name}><th>{name.replaceAll('_', ' ')}</th>{metrics.map(metric => <td key={metric}>{card.metrics[name][metric].toFixed(4)}</td>)}</tr>)}</tbody></table></div>
       <p>Calibration is not assumed to improve the raw model. These scores measure an artificial generator—not real borrower default prediction.</p>
       <div className="table-scroll"><table aria-label="Model data splits"><thead><tr><th>Split</th><th>Rows</th><th>Simulated events</th><th>Event rate</th></tr></thead><tbody>{Object.entries(card.splits).map(([name, split]) => <tr key={name}><th>{name}</th><td>{split.rows}</td><td>{split.events}</td><td>{pct(split.event_rate)}</td></tr>)}</tbody></table></div>
+      <section aria-label="Threshold analysis">
+        <h3>Threshold trade-offs on fictional test data</h3>
+        <p>Calibrated logistic model · {card.splits.test.rows} held-out rows. Positive means simulated event label 1. A probability equal to the threshold is counted positive.</p>
+        <p>These seven thresholds are fixed examples, not optimized on test results. The initial 50% view is illustrative, not a recommended lending rule. Changing it does not change the model, portfolio PDs or reports.</p>
+        <label>Evaluation threshold<select aria-label="Evaluation threshold" value={threshold} onChange={event => setThreshold(Number(event.target.value))}>
+          {thresholds.map(value => <option key={value} value={value}>{pct(value)}</option>)}
+        </select></label>
+        {selectedThreshold && <div aria-live="polite">
+          <p>{selectedThreshold.flagged} of {card.splits.test.rows} fictional profiles flagged at {pct(selectedThreshold.threshold)}.</p>
+          <div className="table-scroll"><table aria-label="Synthetic confusion matrix">
+            <caption>Actual versus predicted simulated events at {pct(selectedThreshold.threshold)}</caption>
+            <thead><tr><th scope="col">Actual label</th><th scope="col">Predicted event</th><th scope="col">Predicted no event</th></tr></thead>
+            <tbody><tr><th scope="row">Event (1)</th><td>TP: {selectedThreshold.true_positive}</td><td>FN: {selectedThreshold.false_negative}</td></tr>
+              <tr><th scope="row">No event (0)</th><td>FP: {selectedThreshold.false_positive}</td><td>TN: {selectedThreshold.true_negative}</td></tr></tbody>
+          </table></div>
+        </div>}
+        <p>TP = detected events; FN = missed events; FP = false alarms; TN = correctly unflagged non-events. Lower thresholds generally flag more profiles, trading fewer missed events for more false alarms.</p>
+        <div className="table-scroll"><table aria-label="Synthetic threshold sensitivity">
+          <caption>Undefined rates are shown as N/A when their denominator is zero</caption>
+          <thead><tr><th scope="col">Threshold</th><th scope="col">Flagged</th><th scope="col">Missed events</th><th scope="col">False alarms</th><th scope="col">Precision</th><th scope="col">Recall</th><th scope="col">False positive rate</th></tr></thead>
+          <tbody>{card.threshold_analysis.rows.map(row => <tr key={row.threshold}>
+            <th scope="row">{pct(row.threshold)}</th><td>{row.flagged} ({pct(row.flagged_rate)})</td><td>{row.false_negative}</td><td>{row.false_positive}</td>
+            <td>{row.precision === null ? 'N/A' : pct(row.precision)}</td><td>{row.recall === null ? 'N/A' : pct(row.recall)}</td><td>{row.false_positive_rate === null ? 'N/A' : pct(row.false_positive_rate)}</td>
+          </tr>)}</tbody>
+        </table></div>
+      </section>
       <details><summary>Calibration bins, provenance and limitations</summary>
         <div className="table-scroll"><table aria-label="Synthetic calibration bins"><thead><tr><th>Probability bin</th><th>Count</th><th>Mean prediction</th><th>Observed rate</th></tr></thead><tbody>{card.calibration_bins.map(bin => <tr key={bin.lower}><td>{pct(bin.lower)}–{pct(bin.upper)}</td><td>{bin.count}</td><td>{bin.mean_prediction === null ? 'Empty' : pct(bin.mean_prediction)}</td><td>{bin.observed_rate === null ? 'Empty' : pct(bin.observed_rate)}</td></tr>)}</tbody></table></div>
         <p style={{ overflowWrap: 'anywhere' }}>Dataset SHA-256: {card.dataset_sha256}</p>

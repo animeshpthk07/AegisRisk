@@ -126,3 +126,75 @@ def test_api_boundaries_and_read_only_model_card(model):
         assert oversized.status_code == 413
         assert client.get("/api/v1/model-card").json() == card.json()
     assert lab.get_model() is model
+
+
+def test_threshold_counts_match_independent_confusion_matrix(model):
+    from sklearn.metrics import confusion_matrix
+
+    x, y = lab.generate_data()
+    test = lab.split_indices(y)["test"]
+    probabilities = model.calibrated.predict_proba(x[test])[:, 1]
+    analysis = model.card["threshold_analysis"]
+    assert analysis["rule"] == "probability >= threshold"
+    assert analysis["model"] == "calibrated_logistic"
+    assert analysis["positive_label"] == 1
+    assert analysis["default_threshold"] == 0.5
+    rows = analysis["rows"]
+    assert [r["threshold"] for r in rows] == [0, 0.1, 0.2, 0.3, 0.5, 0.7, 1]
+    for row in rows:
+        predicted = probabilities >= row["threshold"]
+        tn, fp, fn, tp = confusion_matrix(y[test], predicted, labels=[0, 1]).ravel()
+        assert [row[k] for k in (
+            "true_negative", "false_positive", "false_negative", "true_positive"
+        )] == [tn, fp, fn, tp]
+        assert tn + fp + fn + tp == 600
+        assert row["flagged"] == int(predicted.sum())
+        assert row["flagged_rate"] == pytest.approx(predicted.mean())
+        assert row["recall"] == pytest.approx(tp / (tp + fn))
+        assert row["false_positive_rate"] == pytest.approx(fp / (fp + tn))
+        if tp + fp:
+            assert row["precision"] == pytest.approx(tp / (tp + fp))
+        else:
+            assert row["precision"] is None
+    assert [r["flagged"] for r in rows] == sorted(
+        [r["flagged"] for r in rows], reverse=True
+    )
+
+
+def test_threshold_boundary_ties_and_hand_calculated_errors():
+    rows = lab.threshold_sensitivity([0, 1, 1, 0], [0.1, 0.2, 0.5, 0.8])
+    middle = next(r for r in rows if r["threshold"] == 0.5)
+    assert middle == {
+        "threshold": 0.5, "true_positive": 1, "false_positive": 1,
+        "false_negative": 1, "true_negative": 1, "flagged": 2,
+        "flagged_rate": 0.5, "precision": 0.5, "recall": 0.5,
+        "false_positive_rate": 0.5,
+    }
+    assert rows[0]["flagged"] == 4
+    assert rows[-1]["flagged"] == 0
+    assert rows[-1]["precision"] is None
+    # A prediction exactly equal to either endpoint is classified positive.
+    endpoints = lab.threshold_sensitivity([0, 1], [0.0, 1.0])
+    assert endpoints[0]["flagged"] == 2
+    assert endpoints[-1]["true_positive"] == 1
+
+
+def test_threshold_undefined_rates_are_null_and_json_safe():
+    no_events = lab.threshold_sensitivity([0, 0], [0.1, 0.9])
+    only_events = lab.threshold_sensitivity([1, 1], [0.1, 0.9])
+    assert all(r["recall"] is None for r in no_events)
+    assert all(r["false_positive_rate"] is None for r in only_events)
+    import json
+
+    json.dumps(no_events + only_events, allow_nan=False)
+
+
+@pytest.mark.parametrize(("labels", "probabilities"), [
+    ([], []), ([0], [0.1, 0.2]), ([2], [0.1]),
+    ([0], [float("nan")]), ([1], [float("inf")]),
+    ([0], [-0.01]), ([1], [1.01]), ([[0]], [[0.1]]),
+])
+def test_threshold_analysis_rejects_invalid_evaluation_arrays(labels, probabilities):
+    with pytest.raises(ValueError):
+        lab.threshold_sensitivity(labels, probabilities)
+

@@ -58,6 +58,41 @@ raw log-odds, intercept, and standardized feature contributions. The contributio
 intercept reconstruct the **raw logistic score**. They are not SHAP, causal explanations,
 or contributions to the calibrated probability. No approve/reject recommendation exists.
 
+## Confusion matrix and threshold sensitivity
+
+The model card adds `threshold_analysis` for **calibrated logistic predictions on the
+same untouched 600-row synthetic test split**. The fixed descriptive grid is
+0%, 10%, 20%, 30%, 50%, 70% and 100%. It is not selected by optimizing test results.
+The initial 50% display is an illustration, not a recommended operating threshold.
+A simulated event (label 1) is predicted when probability **>=** the threshold;
+this includes exact ties at zero and one.
+
+The browser displays an actual-by-predicted confusion matrix and all seven rows:
+
+- TP: events detected; FN: events missed; FP: false alarms; TN: non-events unflagged.
+- Flagged count = TP + FP; flagged rate = (TP + FP) / test rows.
+- Precision = TP / (TP + FP); recall = TP / (TP + FN).
+- False-positive rate = FP / (FP + TN).
+- Undefined rates use JSON null and display N/A, never a fabricated zero.
+
+Changing the native, keyboard-accessible selector only changes the displayed matrix.
+It never retrains the model or changes portfolio PDs, reports or lending decisions.
+Lowering a threshold generally flags more profiles, reducing missed events while
+increasing false alarms. Choosing a real operating policy would require separate
+validation, explicit costs, governance and relevant expert review.
+
+For a hand-checkable example, labels [0,1,1,0] and probabilities [0.1,0.2,0.5,0.8]
+at 50% give TP=1, FP=1, FN=1, TN=1; precision, recall and false-positive rate are 50%.
+These are illustrative numbers, not the trained model's measured results.
+
+Tests independently compare all runtime counts with scikit-learn's confusion matrix,
+check exact threshold ties, single-class/undefined cases and invalid evaluation arrays.
+Browser checks compare displayed cells with actual API evidence at 1440px and 320px,
+exercise keyboard selection/reset, and reject missing or inconsistent evidence.
+The UI validates totals, event counts, rates, fixed thresholds and monotonic counts
+before displaying the model card. See the relevant GitHub verification run for
+execution status; the presence of tests alone is not a passing result.
+
 ## Boundaries and checks
 
 POST /api/v1/model-predict accepts only four finite bounded numeric ratios and an explicit
@@ -74,5 +109,6 @@ input limits, desktop/mobile use, outages/retry and pending-result cancellation.
 
 Remaining model work: independent real-world data governance and validation, temporal testing,
 uncertainty intervals, monitoring, fairness assessment, and banking expert review. These are
-not implied by successful synthetic tests. Public hosting and authentication are separate,
-uncompleted milestones; this module does not authorize exposure of a multi-user service.
+not implied by successful synthetic tests. Public hosting is deferred by owner choice.
+Optional access controls are described in [Authentication](AUTHENTICATION.md);
+this module does not establish production banking readiness.
