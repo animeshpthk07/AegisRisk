@@ -142,6 +142,12 @@ After the browser suite, check_lifecycle.py saves one additional fictional portf
 
 The job uses the explicit Compose project aegisrisk-container-ci and a public, test-only database password. Its final cleanup removes only that disposable runner project's containers and volume. It does not touch a developer's local volume or any deployed database. Do not copy the CI override or password into a public/shared deployment. The default Compose configuration remains unchanged.
 
+The job also exercises a custom-format PostgreSQL backup restore. It dumps the captured fictional state, then saves a different source-only snapshot and asserts that the source catalog no longer matches the captured evidence. It creates a separate empty `aegisrisk_restore` database and restores with `pg_restore --exit-on-error --no-owner --no-privileges`. A temporary Compose override points only the API to that restored database; dependencies are not rerun, and the web process restarts before readiness and HTTP verification. The complete captured demo, saved baseline, scenario and catalog evidence must match again, and an identical save must reuse its original UUID. The post-backup source change makes a check accidentally targeting the original database fail.
+
+This step requires the fixed `aegisrisk-container-ci` project and `fictional-only` marker. Temporary backup and override files have restrictive permissions, are removed on step exit and are not uploaded as artifacts. No source database is dropped or overwritten. The normal project-scoped cleanup removes only the disposable CI stack and volume. Reproduce through the repository workflow on an isolated runner; do not copy this disposable test sequence onto a real database.
+
+This is a logical restore drill within one disposable PostgreSQL service. It does not establish offsite storage, encrypted backup management, point-in-time recovery, recovery-time/recovery-point objectives, role/grant restoration, a failed-host recovery or an operational retention/deletion policy. Check the exact [PR #5 verification](https://github.com/animeshpthk07/AegisRisk/pull/5/checks) before treating the drill as passed.
+
 Container status, logs, screenshots, traces, report downloads, JUnit results and the synthetic before-restart evidence are retained as container-check-evidence for seven days. Inspect the actual run before calling the container path verified. A passing runner check is not hosted-deployment, disaster-recovery, load, authentication or production-security certification.
 
 ## Print a self-contained evidence report

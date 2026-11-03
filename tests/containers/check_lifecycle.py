@@ -91,7 +91,9 @@ def evidence(client, dataset_id):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=["defaults", "capture", "verify"])
+    parser.add_argument(
+        "mode", choices=["defaults", "capture", "source-change", "verify"]
+    )
     mode = parser.parse_args().mode
     if os.environ.get("AEGISRISK_CONTAINER_TEST") != "fictional-only":
         raise RuntimeError("Use only the isolated fictional container-test setup")
@@ -119,6 +121,23 @@ def main():
             STATE.parent.mkdir(exist_ok=True)
             STATE.write_text(json.dumps(state, indent=2), encoding="utf-8")
             print("Captured fictional portfolio, reports and catalog before restart")
+        elif mode == "source-change":
+            state = json.loads(STATE.read_text(encoding="utf-8"))
+            changed_body = BODY.replace(b"SYN-CONTAINER-001", b"SYN-CONTAINER-002")
+            changed_headers = {
+                **HEADERS,
+                "X-AegisRisk-Preview-Digest": sha256(changed_body).hexdigest(),
+            }
+            changed = client.post(
+                "/saved-portfolios",
+                params={"name": "Fictional post-backup canary"},
+                headers=changed_headers,
+                content=changed_body,
+            )
+            assert changed.status_code == 201, changed.text
+            assert changed.json()["portfolio"]["id"] != state["dataset_id"]
+            assert evidence(client, state["dataset_id"]) != state["evidence"]
+            print("Post-backup source change: captured evidence no longer matches")
         else:
             state = json.loads(STATE.read_text(encoding="utf-8"))
             assert evidence(client, state["dataset_id"]) == state["evidence"]
@@ -126,7 +145,7 @@ def main():
             assert retry.status_code == 200, retry.text
             assert retry.json()["portfolio"]["id"] == state["dataset_id"]
             assert evidence(client, state["dataset_id"]) == state["evidence"]
-            print("Restart/reseed recovery: all evidence unchanged; retry deduplicated")
+            print("Recovery: all evidence unchanged; retry deduplicated")
 
 
 if __name__ == "__main__":

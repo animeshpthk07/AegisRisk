@@ -189,6 +189,28 @@ jobs:
           docker compose run --rm migrate
           docker compose restart api web
           python tests/containers/check_lifecycle.py verify
+      - name: Verify backup recovery into a separate fictional database
+        run: |
+          test "$COMPOSE_PROJECT_NAME" = "aegisrisk-container-ci"
+          test "$AEGISRISK_CONTAINER_TEST" = "fictional-only"
+          umask 077
+          backup_file="$(mktemp)"
+          restore_config="$(mktemp)"
+          trap 'rm -f "$backup_file" "$restore_config"' EXIT
+          docker compose exec -T db pg_dump -U aegisrisk -d aegisrisk --format=custom > "$backup_file"
+          test -s "$backup_file"
+          python tests/containers/check_lifecycle.py source-change
+          docker compose exec -T db createdb -U aegisrisk --template=template0 aegisrisk_restore
+          docker compose exec -T db pg_restore -U aegisrisk --dbname=aegisrisk_restore --exit-on-error --no-owner --no-privileges < "$backup_file"
+          cat > "$restore_config" <<'YAML'
+          services:
+            api:
+              environment:
+                DATABASE_URL: postgresql+psycopg://aegisrisk:${POSTGRES_PASSWORD}@db:5432/aegisrisk_restore
+          YAML
+          docker compose -f compose.yaml -f tests/containers/compose.yaml -f "$restore_config" up -d --no-deps api
+          docker compose restart web
+          python tests/containers/check_lifecycle.py verify
       - name: Collect container diagnostics
         if: always()
         run: |
