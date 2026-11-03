@@ -1,10 +1,18 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-11-02. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-11-03. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
 The frontend-to-backend-to-database flow was verified locally. The foundation source is now published at https://github.com/animeshpthk07/AegisRisk. Current work uses VS Code for the Web and GitHub in the visible browser, as requested. The local preview is not a public deployment.
+
+### Inactivity cleanup and reviewer materials — verified 2026-11-03
+
+PR #3 and PR #4 are merged. Combined main `f17650ec74aee37b5c20bdeebcf346c481ab2488` passed all six jobs in [application run #160](https://github.com/animeshpthk07/AegisRisk/actions/runs/41537535832). The preceding application merge `de105e9605f8fc4d9d0d4101d4ee0a63cb701082` passed [demo image verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/41537328044); the later merge changes documentation only. The superseded main run remains cancelled in history.
+
+Token-mode tabs now warn one minute before a 15-minute inactivity lock, offer keyboard extension and clear credentials, loaded state and pending requests at expiry. Seven added browser cases passed on Chromium, Firefox and WebKit, including 1440/320-pixel interaction, synthetic-input rejection, resume boundaries and late responses. The final PR checks recorded 190 backend tests, 19 frontend tests, 111 Chromium workflow cases and 18 access cases; Firefox/WebKit each recorded 110 workflow cases, one existing engine-specific skip and 18 access cases. Demo verification reused 41 browser cases plus four runtime cases. Counts across environments are not additional distinct coverage.
+
+[PROJECT_PRESENTATION.md](PROJECT_PRESENTATION.md) now contains the walkthrough, CV bullets, project description, interview prompts and draft LinkedIn post. These are saved drafts, not a published or approved LinkedIn launch. See [release readiness](RELEASE_READINESS.md) for exact source/run evidence and earlier test-driver corrections. Browser cleanup does not revoke the server token. Enterprise identity, storage operations, independent validation and remaining accessibility checks are unfinished; hosting remains deferred by owner decision.
 
 ### Browser script policy checkpoint — verified 2026-11-02
 
@@ -239,11 +247,11 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON, printable HTML and PDF downloads; full workbench pending |
 | M7 Explanations | Not complete | Deterministic only; external AI deferred |
 | M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
-| M9 Security | In progress; workspace access and nonce policy verified (runs #112/#132) | Token identity, roles, workspace isolation and browser script/resource policy pass; style-attribute exception, production identity/session controls, storage operations and independent review remain open |
+| M9 Security | In progress; workspace access, nonce policy and inactivity cleanup verified (run #160) | Token identity, roles, workspace isolation, browser script/resource policy and inactivity cleanup pass; style-attribute exception, production identity/session controls, storage operations and independent review remain open |
 | M10 Full verification | Partial | Backend/frontend and real workflows pass in Chromium, Firefox and WebKit; Compose browser/restart lifecycle passes; screen-reader, zoom, physical-device and broader security verification remain pending |
 | M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
 | M12 Release | Educational preview published; full product incomplete | v0.1.0-preview.1 pins the source verified by application #70 and demo #5; hosting deferred and broader acceptance gaps remain |
-| Career presentation and learning | Partial | Reproducible reviewer walkthrough and technical discussion guide added; public career materials and LinkedIn launch remain pending |
+| Career presentation and learning | Partial | Walkthrough, technical discussion guide, CV bullets and LinkedIn drafts saved in PROJECT_PRESENTATION.md; owner review and LinkedIn publication remain pending |
 
 ## Visible workflow requested by user
 
