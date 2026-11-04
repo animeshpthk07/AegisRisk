@@ -1618,3 +1618,113 @@ def test_model_threshold_corruption_rejected_then_retry(page, failure):
     )).to_be_visible()
     expect(panel.get_by_role("alert")).to_have_count(0)
 
+
+
+@pytest.mark.parametrize("width", [1440, 320])
+@pytest.mark.parametrize("light", [False, True], ids=["dark", "light"])
+def test_portfolio_contributions_match_api_and_reflow(page, width, light):
+    page.set_viewport_size({"width": width, "height": 1000})
+    page.emulate_media(reduced_motion="reduce")
+    page.goto(BASE_URL)
+    if light:
+        page.get_by_role("button", name="Toggle light and dark theme").click()
+    evidence = httpx.get(f"{BASE_URL}/api/portfolio", timeout=10).json()["analytics"]
+    panel = page.get_by_role("region", name="Portfolio analytics", exact=True)
+    selector = panel.get_by_label("Group portfolio by", exact=True)
+    table = panel.get_by_role("table", name="Portfolio group contributions")
+    for dimension in ("industry", "geography", "rating", "borrower"):
+        selector.select_option(dimension)
+        groups = evidence["breakdowns"][dimension]
+        expect(table.get_by_role("row")).to_have_count(len(groups["groups"]) + 1)
+        expect(panel).to_contain_text(f'exposure HHI: {groups["hhi"]:.4f}')
+        for index, group in enumerate(groups["groups"]):
+            row = table.get_by_role("row").nth(index + 1)
+            expect(row.get_by_role("rowheader")).to_have_text(group["label"])
+            cells = row.get_by_role("cell")
+            expect(cells.nth(0)).to_have_text(str(group["facility_count"]))
+            # Strip currency/grouping only; allow the documented whole-rupee rounding.
+            ead = float(re.sub(r"[^0-9.-]", "", cells.nth(1).inner_text()))
+            loss = float(re.sub(r"[^0-9.-]", "", cells.nth(3).inner_text()))
+            assert abs(ead - group["ead"]) <= 0.5
+            assert abs(loss - group["expected_loss"]) <= 0.5
+            expect(cells.nth(2)).to_have_text(f'{group["exposure_share"] * 100:.2f}%')
+            expect(cells.nth(4)).to_have_text(f'{group["loss_share"] * 100:.2f}%')
+    top = panel.get_by_role("table", name="Top expected-loss contributors")
+    expect(top.get_by_role("row")).to_have_count(11)
+    for index, facility in enumerate(evidence["top_facilities"]):
+        row = top.get_by_role("row").nth(index + 1)
+        expect(row.get_by_role("rowheader")).to_contain_text(facility["id"])
+        expect(row.get_by_role("cell").nth(5)).to_have_text(
+            f'{facility["loss_share"] * 100:.2f}%'
+        )
+    selector.focus()
+    page.keyboard.press("Home")
+    expect(selector).to_have_value("industry")
+    dimensions = page.evaluate("""() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth
+    })""")
+    assert dimensions["content"] <= dimensions["viewport"] + 1, dimensions
+    if width == 320:
+        region = panel.get_by_role("region", name="Portfolio contribution table")
+        assert region.evaluate("node => node.scrollWidth > node.clientWidth")
+    panel.scroll_into_view_if_needed()
+    page.screenshot(path=str(ARTIFACTS / f"contributions-{width}-{light}.png"))
+
+
+@pytest.mark.parametrize("zero_exposure", [False, True], ids=["zero-loss", "zero-exposure"])
+def test_contribution_snapshot_switch_and_undefined_shares(page, zero_exposure):
+    body = fictional_csv().replace(b",0.1,0.5,1000,", b",0,0.5,1000,")
+    if zero_exposure:
+        body = body.replace(b",0,0.5,1000,", b",0,0.5,0,")
+    name = "Fictional contribution " + uuid4().hex[:8]
+    snapshot = save_snapshot(body, name)
+    page.reload()
+    panel = page.get_by_role("region", name="Portfolio analytics", exact=True)
+    grouping = panel.get_by_label("Group portfolio by", exact=True)
+    grouping.select_option("borrower")
+    active = page.get_by_label("Active portfolio", exact=True)
+    expect(active.locator("option").filter(has_text=name)).to_have_count(1)
+    active.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("1 fictional facilities")
+    expect(grouping).to_have_value("industry")
+    for dimension, label in (("industry", "Energy"), ("geography", "West"),
+                             ("rating", "B"), ("borrower", "Fictional Birch")):
+        grouping.select_option(dimension)
+        table = panel.get_by_role("table", name="Portfolio group contributions")
+        expect(table.get_by_role("row")).to_have_count(2)
+        row = table.get_by_role("row").nth(1)
+        expect(row.get_by_role("rowheader")).to_have_text(label)
+        expect(row.get_by_role("cell").nth(4)).to_have_text("Not defined")
+        expect(row.get_by_role("cell").nth(2)).to_have_text(
+            "Not defined" if zero_exposure else "100.00%"
+        )
+        expect(panel).to_contain_text("exposure HHI: " + ("Not defined" if zero_exposure else "1.0000"))
+    assert "NaN" not in panel.inner_text()
+    active.select_option("")
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("40 fictional facilities")
+    expect(grouping).to_have_value("industry")
+    expect(panel.get_by_role("table", name="Top expected-loss contributors").get_by_role("row")).to_have_count(11)
+
+
+@pytest.mark.parametrize("corruption", ["missing", "share", "count"])
+def test_invalid_contribution_evidence_is_rejected_and_reload_recovers(page, corruption):
+    payload = httpx.get(f"{BASE_URL}/api/portfolio", timeout=10).json()
+    if corruption == "missing":
+        payload.pop("analytics")
+    elif corruption == "share":
+        payload["analytics"]["breakdowns"]["industry"]["groups"][0]["exposure_share"] = -1
+    else:
+        payload["analytics"]["breakdowns"]["geography"]["groups"][0]["facility_count"] += 1
+    page.route("**/api/portfolio", lambda route: route.fulfill(
+        status=200, content_type="application/json", body=json.dumps(payload)
+    ))
+    page.reload()
+    panel = page.get_by_role("region", name="Portfolio analytics", exact=True)
+    expect(panel.get_by_role("alert")).to_contain_text("Concentration evidence could not be verified")
+    expect(panel.get_by_role("table")).to_have_count(0)
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("40 fictional facilities")
+    page.unroute("**/api/portfolio")
+    page.reload()
+    expect(panel.get_by_label("Group portfolio by", exact=True)).to_have_value("industry")
+    expect(panel.get_by_role("alert")).to_have_count(0)
