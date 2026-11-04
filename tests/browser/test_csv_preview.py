@@ -1672,7 +1672,9 @@ def test_portfolio_contributions_match_api_and_reflow(page, width, light):
     page.screenshot(path=str(ARTIFACTS / f"contributions-{width}-{light}.png"))
 
 
-@pytest.mark.parametrize("zero_exposure", [False, True], ids=["zero-loss", "zero-exposure"])
+@pytest.mark.parametrize(
+    "zero_exposure", [False, True], ids=["zero-loss", "zero-exposure"]
+)
 def test_contribution_snapshot_switch_and_undefined_shares(page, zero_exposure):
     body = fictional_csv().replace(b",0.1,0.5,1000,", b",0,0.5,1000,")
     if zero_exposure:
@@ -1686,7 +1688,9 @@ def test_contribution_snapshot_switch_and_undefined_shares(page, zero_exposure):
     active = page.get_by_label("Active portfolio", exact=True)
     expect(active.locator("option").filter(has_text=name)).to_have_count(1)
     active.select_option(snapshot["id"])
-    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("1 fictional facilities")
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "1 fictional facilities"
+    )
     expect(grouping).to_have_value("industry")
     for dimension, label in (("industry", "Energy"), ("geography", "West"),
                              ("rating", "B"), ("borrower", "Fictional Birch")):
@@ -1699,32 +1703,47 @@ def test_contribution_snapshot_switch_and_undefined_shares(page, zero_exposure):
         expect(row.get_by_role("cell").nth(2)).to_have_text(
             "Not defined" if zero_exposure else "100.00%"
         )
-        expect(panel).to_contain_text("exposure HHI: " + ("Not defined" if zero_exposure else "1.0000"))
+        expect(panel).to_contain_text(
+            "exposure HHI: " + ("Not defined" if zero_exposure else "1.0000")
+        )
     assert "NaN" not in panel.inner_text()
     active.select_option("")
-    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("40 fictional facilities")
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
     expect(grouping).to_have_value("industry")
-    expect(panel.get_by_role("table", name="Top expected-loss contributors").get_by_role("row")).to_have_count(11)
+    top = panel.get_by_role("table", name="Top expected-loss contributors")
+    expect(top.get_by_role("row")).to_have_count(11)
 
 
 @pytest.mark.parametrize("corruption", ["missing", "share", "count"])
-def test_invalid_contribution_evidence_is_rejected_and_reload_recovers(page, corruption):
+def test_invalid_contribution_evidence_is_rejected_and_reload_recovers(
+    page, corruption
+):
     payload = httpx.get(f"{BASE_URL}/api/portfolio", timeout=10).json()
     if corruption == "missing":
         payload.pop("analytics")
     elif corruption == "share":
-        payload["analytics"]["breakdowns"]["industry"]["groups"][0]["exposure_share"] = -1
+        group = payload["analytics"]["breakdowns"]["industry"]["groups"][0]
+        group["exposure_share"] = -1
     else:
-        payload["analytics"]["breakdowns"]["geography"]["groups"][0]["facility_count"] += 1
+        group = payload["analytics"]["breakdowns"]["geography"]["groups"][0]
+        group["facility_count"] += 1
     page.route("**/api/portfolio", lambda route: route.fulfill(
         status=200, content_type="application/json", body=json.dumps(payload)
     ))
     page.reload()
     panel = page.get_by_role("region", name="Portfolio analytics", exact=True)
-    expect(panel.get_by_role("alert")).to_contain_text("Concentration evidence could not be verified")
+    expect(panel.get_by_role("alert")).to_contain_text(
+        "Concentration evidence could not be verified"
+    )
     expect(panel.get_by_role("table")).to_have_count(0)
-    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text("40 fictional facilities")
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "40 fictional facilities"
+    )
     page.unroute("**/api/portfolio")
     page.reload()
-    expect(panel.get_by_label("Group portfolio by", exact=True)).to_have_value("industry")
+    expect(panel.get_by_label("Group portfolio by", exact=True)).to_have_value(
+        "industry"
+    )
     expect(panel.get_by_role("alert")).to_have_count(0)
