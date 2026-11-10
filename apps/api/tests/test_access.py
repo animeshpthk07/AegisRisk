@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
 from test_api import client as client  # noqa: PLC0414 - re-export the pytest fixture
-from test_api import csv_body, save_csv
+from test_api import CSV_ROW, csv_body, save_csv
 
 from aegisrisk import database
 from aegisrisk.access import authenticate, current_principal
@@ -41,6 +41,7 @@ def identities(monkeypatch):
     ("get", "portfolio"), ("get", "facilities"), ("get", "explanation"),
     ("get", "report"), ("get", "report-pdf"), ("get", "saved-portfolios"),
     ("get", "model-card"), ("get", "access"), ("post", "stress"),
+    ("get", "facility-review"),
     ("post", "scenario-report"), ("post", "scenario-report-pdf"),
     ("post", "import-preview"), ("post", "saved-portfolios"), ("post", "model-predict"),
 ])
@@ -148,6 +149,20 @@ def test_foreign_snapshot_cannot_be_read_or_exported(client, identities, method,
     unknown = getattr(client, method)(f"/api/v1/{resource}?dataset_id={uuid4()}", headers=headers[1], **options)
     assert foreign.status_code == unknown.status_code == 404
     assert foreign.json() == unknown.json() == {"detail": "Saved portfolio not found"}
+
+
+def test_facility_review_uses_the_selected_workspace(client, identities):
+    _, headers = identities
+    saved = save_csv(client, **headers[0]).json()["portfolio"]["id"]
+    endpoint = "/api/v1/facility-review"
+    query = {"dataset_id": saved, "facility_id": CSV_ROW[0]}
+    own = client.get(endpoint, params=query, headers=headers[2])
+    assert own.status_code == 200 and own.json()["dataset_id"] == saved
+    assert own.json()["model"] is None
+    foreign = client.get(endpoint, params=query, headers=headers[1])
+    absent = client.get(endpoint, params=query | {"dataset_id": str(uuid4())}, headers=headers[1])
+    assert foreign.status_code == absent.status_code == 404
+    assert foreign.json() == absent.json() == {"detail": "Saved portfolio not found"}
 
 
 def test_viewer_can_review_own_workspace_but_cannot_save(client, identities):
