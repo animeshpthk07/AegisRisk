@@ -291,8 +291,13 @@ def test_idle_warning_extend_lock_and_reunlock(clock_page, private_app, width):
     unlock(page, private_app)
     selector = page.get_by_label("Active portfolio", exact=True)
     selector.select_option(private_app["saved_id"])
-    private_row = page.get_by_role("row").filter(has_text="SYN-PRIVATE-1")
-    expect(private_row).to_be_visible()
+    for table_name in (
+        "Fictional facility metrics, INR and one-year PD",
+        "Top expected-loss contributors",
+    ):
+        table = page.get_by_role("table", name=table_name, exact=True)
+        private_row = table.get_by_role("row").filter(has_text="SYN-PRIVATE-1")
+        expect(private_row).to_be_visible()
     page.clock.fast_forward(14 * 60_000 + 1000)
     warning = page.get_by_label("Workspace access").get_by_role("status")
     expect(warning).to_contain_text("Unsaved work will be cleared")
@@ -308,7 +313,7 @@ def test_idle_warning_extend_lock_and_reunlock(clock_page, private_app, width):
     expect(warning).to_be_visible()
     page.clock.fast_forward(60_000)
     expect(page.get_by_role("heading", name="Unlock your workspace")).to_be_visible()
-    expect(private_row).to_have_count(0)
+    expect(page.locator("body")).not_to_contain_text("SYN-PRIVATE-1")
     expect(selector).to_have_count(0)
     field = page.get_by_label("Access token", exact=True)
     expect(field).to_have_value("")
