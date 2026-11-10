@@ -32,9 +32,13 @@ jobs:
         env:
           AEGISRISK_PDF_EVIDENCE_DIR: test-results/pdf
       - name: Render synthetic PDF evidence for browser-only review
+        timeout-minutes: 5
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y poppler-utils
+          if ! command -v pdftoppm >/dev/null; then
+            apt_options=(-o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=30)
+            sudo apt-get "${apt_options[@]}" update -qq
+            sudo apt-get "${apt_options[@]}" install -y --no-install-recommends poppler-utils
+          fi
           for report in test-results/pdf/*.pdf; do
             pdftoppm -r 90 -png "$report" "${report%.pdf}"
           done
