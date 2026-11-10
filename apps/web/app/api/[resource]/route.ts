@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const reads = new Set(['health', 'ready', 'access', 'portfolio', 'facilities', 'explanation', 'saved-portfolios', 'report', 'report-pdf', 'model-card']);
+const reads = new Set(['health', 'ready', 'access', 'portfolio', 'facilities', 'facility-review', 'explanation', 'saved-portfolios', 'report', 'report-pdf', 'model-card']);
 const writes = new Set(['stress', 'scenario-report', 'scenario-report-pdf', 'import-preview', 'saved-portfolios', 'model-predict']);
 const uploadTypes = new Set(['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
 const safeHeaders = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', Vary: 'Authorization' };
