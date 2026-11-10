@@ -541,6 +541,56 @@ def calculate_scenario(page):
     return pending.value.json()
 
 
+@pytest.mark.parametrize("width", [1440, 320])
+def test_stress_presets_reconcile_sector_results_and_clear_on_edit(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    body = fictional_csv() + (
+        b"SYN-STRESS-02,Fictional Pine,Services,East,B,0.2,0.5,200,INR,one_year\n"
+    )
+    name = "Fictional preset " + uuid4().hex[:8]
+    snapshot = save_snapshot(body, name)
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    active = page.get_by_label("Active portfolio", exact=True)
+    expect(active.locator("option").filter(has_text=name)).to_have_count(1)
+    active.select_option(snapshot["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "2 fictional facilities"
+    )
+    preset = page.get_by_label("Scenario preset", exact=True)
+    panel = page.get_by_role("region", name="Scenario loss attribution", exact=True)
+    for value, expected in [("baseline", 70), ("mild", 115.5), ("severe", 192.5)]:
+        preset.select_option(value)
+        expect(panel).to_have_count(0)
+        result = calculate_scenario(page)
+        assert result["baseline_el"] == 70
+        assert result["stressed_el"] == expected
+        if value == "baseline":
+            expect(panel).to_contain_text("No facility changed expected loss")
+    preset.select_option("sector")
+    scope = page.get_by_label("Scenario scope", exact=True)
+    assert not scope.evaluate("el => el.validity.valid")
+    scope.select_option("Energy")
+    result = calculate_scenario(page)
+    assert result["stressed_el"] == 185
+    industries = panel.get_by_role("table", name="Scenario losses by industry in INR")
+    energy = industries.get_by_role("row").filter(has_text="Energy")
+    assert energy.get_by_role("cell").all_text_contents() == ["₹50", "₹165", "₹115"]
+    services = industries.get_by_role("row").filter(has_text="Services")
+    assert services.get_by_role("cell").all_text_contents() == ["₹20", "₹20", "₹0"]
+    movers = panel.get_by_role("table", name="Largest facility loss changes in INR")
+    expect(movers.get_by_role("row")).to_have_count(2)
+    expect(movers).to_contain_text(result["largest_changes"][0]["id"])
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    _, report = download_scenario_report(page)
+    assert report["scenario"]["industry_impacts"] == result["industry_impacts"]
+    assert report["scenario"]["largest_changes"] == result["largest_changes"]
+    page.get_by_label("PD multiplier", exact=True).fill("1")
+    expect(preset).to_have_value("custom")
+    expect(panel).to_have_count(0)
+    active.select_option("")
+    expect(scope).to_have_value("")
+
+
 def download_scenario_report(page):
     with page.expect_download() as pending:
         page.get_by_role(

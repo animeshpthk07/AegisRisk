@@ -540,6 +540,14 @@ def test_scenario_report_loads_once_and_scopes_saved_rows(saved_client, monkeypa
     assert scenario["baseline_el"] == 70
     assert scenario["stressed_el"] == 120
     assert scenario["delta_el"] == 50
+    assert scenario["industry_impacts"] == [
+        {"industry": "Energy", "baseline_el": 50, "stressed_el": 100, "delta_el": 50},
+        {"industry": "Services", "baseline_el": 20, "stressed_el": 20, "delta_el": 0},
+    ]
+    assert scenario["largest_changes"] == [
+        {"id": CSV_ROW[0], "industry": "Energy", "baseline_el": 50,
+         "stressed_el": 100, "delta_el": 50}
+    ]
     calc = scenario["calculation"]
     assert calc["affected_facility_count"] == 1
     assert [item["id"] for item in calc["facilities"]] == [CSV_ROW[0], "SYN-OTHER"]
@@ -584,6 +592,10 @@ def test_scenario_report_zero_baseline_and_empty_portfolio(client):
         session.get(Facility, "A").ead = Decimal(0)
         session.commit()
         zero = client.post("/api/v1/scenario-report", json={}).json()["scenario"]
+        assert zero["largest_changes"] == []
+        assert zero["industry_impacts"] == [
+            {"industry": "Energy", "baseline_el": 0, "stressed_el": 0, "delta_el": 0}
+        ]
         assert zero["stressed_el"] == 0
         assert zero["delta_pct"] is None
         assert zero["calculation"]["delta_pct_decimal"] is None
@@ -592,6 +604,8 @@ def test_scenario_report_zero_baseline_and_empty_portfolio(client):
         empty = client.post("/api/v1/scenario-report", json={}).json()
         assert empty["scenario"]["calculation"]["facilities"] == []
         assert empty["scenario"]["calculation"]["affected_facility_count"] == 0
+        assert empty["scenario"]["largest_changes"] == []
+        assert empty["scenario"]["industry_impacts"] == []
         assert empty["baseline"]["source"]["input_rows"] == []
     finally:
         sessions.close()
@@ -869,3 +883,20 @@ def test_pdf_visual_evidence(tmp_path):
     assert '<img src="https://example.invalid/x"/>' in text
     assert r"\u03a9" in text
     (target / "literal-labels.pdf").write_bytes(hostile)
+
+
+def test_stress_largest_changes_rank_absolute_delta_and_limit_ties():
+    rows = [
+        Facility(id=f"SYN-{i:02d}", industry="Energy", pd=Decimal(".1"),
+                 lgd=Decimal(".5"), ead=Decimal(200 if i == 12 else 100))
+        for i in range(13)
+    ]
+    cfg = api_module.StressInput(pd_multiplier=0, lgd_multiplier=1, ead_multiplier=1)
+    result = api_module.stress_payload(list(reversed(rows)), cfg)
+    assert result["delta_el"] == -70
+    assert result["industry_impacts"] == [
+        {"industry": "Energy", "baseline_el": 70, "stressed_el": 0, "delta_el": -70}
+    ]
+    ranked = result["largest_changes"]
+    assert [row["id"] for row in ranked] == ["SYN-12"] + [f"SYN-{i:02d}" for i in range(9)]
+    assert [row["delta_el"] for row in ranked] == [-10] + [-5] * 9

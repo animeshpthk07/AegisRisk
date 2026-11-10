@@ -164,6 +164,8 @@ def stress_payload(rows, config, *, include_evidence=False):
     baseline = Decimal(0)
     stressed = Decimal(0)
     evidence = []
+    by_industry = defaultdict(lambda: [Decimal(0), Decimal(0)])
+    movements = []
     factors = {key: Decimal(str(value)) for key, value in config.model_dump().items()
                if key != "industry"}
     for row in rows:
@@ -175,6 +177,12 @@ def stress_payload(rows, config, *, include_evidence=False):
         scenario_el = expected_loss(min(Decimal(1), pd), min(Decimal(1), lgd), ead)
         baseline += base_el
         stressed += scenario_el
+        totals = by_industry[row.industry]
+        totals[0] += base_el
+        totals[1] += scenario_el
+        if scenario_el != base_el:
+            movements.append((scenario_el - base_el, row.id, row.industry,
+                              base_el, scenario_el))
         if include_evidence:
             evidence.append({
                 "id": row.id, "affected": affected,
@@ -191,6 +199,17 @@ def stress_payload(rows, config, *, include_evidence=False):
         "stressed_el": float(stressed),
         "delta_el": float(stressed - baseline),
         "delta_pct": float((stressed - baseline) / baseline) if baseline else None,
+        "industry_impacts": [
+            {"industry": industry, "baseline_el": float(before), "stressed_el": float(after),
+             "delta_el": float(after - before)}
+            for industry, (before, after) in sorted(by_industry.items())
+        ],
+        "largest_changes": [
+            {"id": facility_id, "industry": industry, "baseline_el": float(before),
+             "stressed_el": float(after), "delta_el": float(delta)}
+            for delta, facility_id, industry, before, after in
+            sorted(movements, key=lambda item: (-abs(item[0]), item[1]))[:10]
+        ],
         "assumptions": [
             "Illustrative sensitivity, not a validated macroeconomic model.",
             "Multipliers apply to selected industry or entire portfolio; PD/LGD capped at 1.",

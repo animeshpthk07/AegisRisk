@@ -5,12 +5,12 @@ import { money, percent } from '../lib/format.mjs';
 import CsvPreview, { type SavedPortfolio } from './csv-preview';
 import { renderReportHtml } from '../lib/report-html.mjs';
 import ModelLab from './model-lab';
+import StressAttribution, { presets, validScenario, type Preset, type Stress } from './stress-attribution';
 import ConcentrationAnalysis, { type PortfolioAnalytics } from './concentration-analysis';
 import { workbenchFetch as fetch, useAccess } from './access';
 
 type Facility = { id: string; borrower: string; industry: string; geography: string; rating: string; pd: number; lgd: number; ead: number; expected_loss: number };
 type Portfolio = { analytics: PortfolioAnalytics; dataset_id: string | null; dataset_version: string; summary: { facility_count: number; total_ead: number; total_expected_loss: number; weighted_pd: number | null; weighted_lgd: number | null; borrower_hhi: number | null }; facilities: Facility[]; segments: { industry: string; ead: number; expected_loss: number; share: number }[]; warnings: string[] };
-type Stress = { baseline_el: number; stressed_el: number; delta_el: number; delta_pct: number | null; assumptions: string[] };
 type StressInputs = { pd_multiplier: number; lgd_multiplier: number; ead_multiplier: number; industry: string | null };
 async function preparePdf(value: unknown): Promise<Blob> {
   const pdf = value as { media_type?: unknown; base64?: unknown; byte_length?: unknown; sha256?: unknown } | null;
@@ -51,6 +51,7 @@ export default function Dashboard() {
   const [narrative, setNarrative] = useState('');
   const [query, setQuery] = useState('');
   const [industry, setIndustry] = useState('');
+  const [preset, setPreset] = useState<Preset>('custom');
   const [pd, setPd] = useState('1.5');
   const [lgd, setLgd] = useState('1.1');
   const [ead, setEad] = useState('1');
@@ -86,6 +87,16 @@ export default function Dashboard() {
     setResult(null); setSubmittedInputs(null); setStressError(''); setBusy(false);
     setScenarioBusy(false); setScenarioError(''); setScenarioMessage('');
   }
+  function choosePreset(next: Preset) {
+    invalidateScenario();
+    setPreset(next);
+    if (next === 'custom') return;
+    const values = presets[next];
+    setPd(values.pd);
+    setLgd(values.lgd);
+    setEad(values.ead);
+    if (next !== 'sector') setIndustry('');
+  }
   function chooseDataset(id: string) {
     if (id === datasetId) return;
     loadVersion.current += 1;
@@ -93,7 +104,7 @@ export default function Dashboard() {
     reportAbort.current?.abort(); reportAbort.current = null;
     setReportBusy(false); setReportError(''); setReportMessage('');
     setDatasetId(id); setData(null); setNarrative(''); setError(''); setConnected(false);
-    setResult(null); setStressError(''); setBusy(false); setQuery(''); setIndustry('');
+    setResult(null); setStressError(''); setBusy(false); setQuery(''); setIndustry(''); setPreset('custom');
   }
   async function loadCatalog(offset = 0) {
     catalogAbort.current?.abort();
@@ -138,6 +149,10 @@ export default function Dashboard() {
     event.preventDefault();
     if (!data || busy || (data.dataset_id || '') !== datasetId) return;
     invalidateScenario();
+    if (preset === 'sector' && !industry) {
+      setStressError('Choose an industry for the sector shock.');
+      return;
+    }
     const inputs: StressInputs = { pd_multiplier: Number(pd), lgd_multiplier: Number(lgd), ead_multiplier: Number(ead), industry: industry || null };
     const scenarioToken = scenarioVersion.current;
     const version = loadVersion.current; const controller = new AbortController(); stressAbort.current = controller;
@@ -147,8 +162,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Stress calculation failed. Use multipliers between 0 and 10.');
       const calculated = await response.json();
       if (!controller.signal.aborted && version === loadVersion.current && scenarioToken === scenarioVersion.current && stressAbort.current === controller) {
-        if (![calculated.baseline_el, calculated.stressed_el, calculated.delta_el].every(Number.isFinite) ||
-            (calculated.delta_pct !== null && !Number.isFinite(calculated.delta_pct)) || !Array.isArray(calculated.assumptions)) throw new Error('Invalid scenario result. Please retry.');
+        if (!validScenario(calculated, data.segments)) throw new Error('Invalid scenario result. Please retry.');
         setResult(calculated); setSubmittedInputs(inputs);
       }
     } catch (err) {
@@ -244,7 +258,14 @@ export default function Dashboard() {
       <ConcentrationAnalysis key={data.dataset_version} data={data.analytics} summary={data.summary}/>
       <section className="insight"><span className="eyebrow">CALCULATION NOTE · DETERMINISTIC</span><p>{narrative}</p><small>No credit recommendation. Figures are derived from the displayed dataset.</small></section>
       <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div><div className="table-scroll" tabIndex={0} role="region" aria-label="Facility metrics table"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted" role="status">Showing {rows.length} of {data.facilities.length} facilities. Demo inputs—not predictions.</p></section>
-      <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}><div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>{ invalidateScenario(); setPd(e.target.value); }}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>{ invalidateScenario(); setLgd(e.target.value); }}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>{ invalidateScenario(); setEad(e.target.value); }}/></label><label>Scope<select aria-label="Scenario scope" value={industry} onChange={e=>{ invalidateScenario(); setIndustry(e.target.value); }}><option value="">Whole portfolio</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p>{submittedInputs && <p>Calculated assumptions: PD ×{submittedInputs.pd_multiplier}, LGD ×{submittedInputs.lgd_multiplier}, EAD ×{submittedInputs.ead_multiplier}; scope: {submittedInputs.industry || 'Whole portfolio'}.</p>}<button onClick={() => void downloadScenarioReport()} disabled={scenarioBusy}>{scenarioBusy ? 'Preparing scenario report…' : 'Download scenario report (JSON)'}</button><button onClick={() => void downloadScenarioReport('html')} disabled={scenarioBusy}>Download scenario report (printable HTML)</button><button onClick={() => void downloadScenarioReport('pdf')} disabled={scenarioBusy}>Download scenario report (PDF)</button></div>}<p className="muted">Changing any assumption clears the result and cancels its download. Recalculate before exporting. Scenario reports contain assumptions, not forecasts.</p>{scenarioError && <p role="alert">{scenarioError}</p>}{scenarioMessage && <p role="status">{scenarioMessage}</p>}</section>
+      <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}>
+        <label htmlFor="stress-preset">Scenario preset</label>
+        <select id="stress-preset" value={preset} onChange={e => choosePreset(e.target.value as Preset)}>
+          <option value="custom">Custom scenario</option>
+          {Object.entries(presets).map(([key, item]) => <option value={key} key={key}>{item.label}</option>)}
+        </select>
+        <p className="muted">Presets supply illustrative multipliers. You can edit any multiplier to create a custom scenario.</p>
+        <div className="form-grid"><label>PD multiplier<input type="number" min="0" max="10" step="0.05" required value={pd} onChange={e=>{ invalidateScenario(); setPreset('custom'); setPd(e.target.value); }}/></label><label>LGD multiplier<input type="number" min="0" max="10" step="0.05" required value={lgd} onChange={e=>{ invalidateScenario(); setPreset('custom'); setLgd(e.target.value); }}/></label><label>EAD multiplier<input type="number" min="0" max="10" step="0.05" required value={ead} onChange={e=>{ invalidateScenario(); setPreset('custom'); setEad(e.target.value); }}/></label><label>Scope<select aria-label="Scenario scope" required={preset === 'sector'} value={industry} onChange={e=>{ invalidateScenario(); if (preset !== 'sector') setPreset('custom'); setIndustry(e.target.value); }}><option value="">{preset === 'sector' ? 'Choose an industry' : 'Whole portfolio'}</option>{data.segments.map(s=><option key={s.industry}>{s.industry}</option>)}</select></label></div><button className="primary" disabled={busy}>{busy ? 'Calculating…' : 'Calculate scenario →'}</button></form>{stressError && <p role="alert">{stressError}</p>}{result && <div aria-live="polite" className="scenario-result"><div>Baseline EL<strong>{money(result.baseline_el)}</strong></div><div>Stressed EL<strong>{money(result.stressed_el)}</strong></div><div>Change<strong>{money(result.delta_el)} · {percent(result.delta_pct)}</strong></div><p>{result.assumptions.join(' ')}</p>{submittedInputs && <p>Calculated assumptions: PD ×{submittedInputs.pd_multiplier}, LGD ×{submittedInputs.lgd_multiplier}, EAD ×{submittedInputs.ead_multiplier}; scope: {submittedInputs.industry || 'Whole portfolio'}.</p>}<button onClick={() => void downloadScenarioReport()} disabled={scenarioBusy}>{scenarioBusy ? 'Preparing scenario report…' : 'Download scenario report (JSON)'}</button><button onClick={() => void downloadScenarioReport('html')} disabled={scenarioBusy}>Download scenario report (printable HTML)</button><button onClick={() => void downloadScenarioReport('pdf')} disabled={scenarioBusy}>Download scenario report (PDF)</button></div>}{result && <StressAttribution result={result}/>}<p className="muted">Changing any assumption clears the result and cancels its download. Recalculate before exporting. Scenario reports contain assumptions, not forecasts.</p>{scenarioError && <p role="alert">{scenarioError}</p>}{scenarioMessage && <p role="status">{scenarioMessage}</p>}</section>
       <section className="panel" aria-label="Baseline report"><p className="eyebrow">PORTABLE EVIDENCE</p><h2>Take the calculations with you.</h2><p className="muted">Download the active portfolio’s baseline summary, facility inputs, decimal calculation evidence, methodology and source fingerprint as JSON. This does not include your stress scenario and is not an audit or regulatory report.</p><button onClick={() => void downloadReport()} disabled={reportBusy}>{reportBusy ? 'Preparing report…' : 'Download baseline report (JSON)'}</button><button onClick={() => void downloadReport('html')} disabled={reportBusy}>Download baseline report (printable HTML)</button><button onClick={() => void downloadReport('pdf')} disabled={reportBusy}>Download baseline report (PDF)</button><p className="muted">PDF reports are generated by the server from the same evidence. Printable HTML remains available offline. Both contain no scripts or external assets.</p>{reportError && <p role="alert">{reportError}</p>}{reportMessage && <p role="status">{reportMessage}</p>}</section>
       <section id="methodology" className="panel"><p className="eyebrow">GOVERNANCE / FOUNDATION BUILD</p><h2>Know what this does—and doesn’t do.</h2>{data.warnings.map(w=><p key={w}>{w}</p>)}<p>Expected loss is calculated facility by facility using decimal arithmetic. Weighted metrics use EAD; HHI sums squared borrower exposure shares. This is not IFRS 9 ECL, a regulatory capital model or an autonomous approval tool.</p><p>Synthetic CSV and values-only XLSX previews never save data. On explicitly enabled instances, reviewed files can be saved as separate, immutable portfolios; optional token access isolates saved workspaces. Baseline and scenario-comparison JSON and printable HTML evidence exports are available. An isolated synthetic Model Lab demonstrates training and held-out evaluation; it does not supply portfolio PDs. Server-generated PDF exports and optional administrator-issued workspace access are available. Production identity, operational security review and public deployment remain unfinished. No real banking data is used.</p></section></>}
       <CsvPreview enabled={savingEnabled && access?.role === 'analyst'} onSaved={rememberSaved} onOpen={chooseDataset}/>
