@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from .access import authenticate, configuration, current_principal
 from .database import get_session
+from .facility_review import router as facility_review_router
 from .imports import router as import_router
 from .model_lab import router as model_router
 from .models import Facility, SavedPortfolio
@@ -28,6 +29,7 @@ app = FastAPI(title="AegisRisk", version="0.1.0", description="Synthetic educati
 app.include_router(import_router)
 app.include_router(snapshot_router)
 app.include_router(model_router)
+app.include_router(facility_review_router)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
