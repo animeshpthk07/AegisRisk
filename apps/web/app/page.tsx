@@ -5,6 +5,7 @@ import { money, percent } from '../lib/format.mjs';
 import CsvPreview, { type SavedPortfolio } from './csv-preview';
 import { renderReportHtml } from '../lib/report-html.mjs';
 import ModelLab from './model-lab';
+import FacilityReview from './facility-review';
 import StressAttribution, { presets, validScenario, type Preset, type Stress } from './stress-attribution';
 import ConcentrationAnalysis, { type PortfolioAnalytics } from './concentration-analysis';
 import { workbenchFetch as fetch, useAccess } from './access';
@@ -50,6 +51,8 @@ export default function Dashboard() {
   const [connected, setConnected] = useState(false);
   const [narrative, setNarrative] = useState('');
   const [query, setQuery] = useState('');
+  const [geography, setGeography] = useState('');
+  const [rating, setRating] = useState('');
   const [industry, setIndustry] = useState('');
   const [preset, setPreset] = useState<Preset>('custom');
   const [pd, setPd] = useState('1.5');
@@ -105,6 +108,7 @@ export default function Dashboard() {
     setReportBusy(false); setReportError(''); setReportMessage('');
     setDatasetId(id); setData(null); setNarrative(''); setError(''); setConnected(false);
     setResult(null); setStressError(''); setBusy(false); setQuery(''); setIndustry(''); setPreset('custom');
+    setGeography(''); setRating('');
   }
   async function loadCatalog(offset = 0) {
     catalogAbort.current?.abort();
@@ -235,7 +239,9 @@ export default function Dashboard() {
       if (version === loadVersion.current && scenarioToken === scenarioVersion.current && scenarioAbort.current === controller) { setScenarioBusy(false); scenarioAbort.current = null; }
     }
   }
-  const rows = data?.facilities.filter((r) => `${r.id} ${r.borrower} ${r.industry}`.toLowerCase().includes(query.toLowerCase())) || [];
+  const rows = data?.facilities.filter(r => (!geography || r.geography === geography)
+    && (!rating || r.rating === rating)
+    && [r.id, r.borrower, r.industry].join(' ').toLowerCase().includes(query.toLowerCase())) || [];
   return <div className={light ? 'app light' : 'app'}>
     <a className="skip" href="#dashboard">Skip to dashboard</a>
     <aside><div className="brand"><span className="brandmark">A</span><div>AegisRisk<small>RISK INTELLIGENCE</small></div></div>
@@ -257,7 +263,22 @@ export default function Dashboard() {
       <section className="panel"><div className="section-head"><h2>Concentration lens</h2><span>EXPOSURE SHARE</span></div><div className="table-scroll" tabIndex={0} role="region" aria-label="Industry exposure table"><table><caption className="sr-only">Industry exposures and shares</caption><thead><tr><th>Industry</th><th>Exposure</th><th>Share</th></tr></thead><tbody>{data.segments.map(s => <tr key={s.industry}><td>{s.industry}</td><td>{money(s.ead)}</td><td>{percent(s.share)}</td></tr>)}</tbody></table></div><p className="muted">Borrower HHI: <strong>{data.summary.borrower_hhi?.toFixed(4) ?? 'Not defined'}</strong> · scale 0–1</p></section></div>
       <ConcentrationAnalysis key={data.dataset_version} data={data.analytics} summary={data.summary}/>
       <section className="insight"><span className="eyebrow">CALCULATION NOTE · DETERMINISTIC</span><p>{narrative}</p><small>No credit recommendation. Figures are derived from the displayed dataset.</small></section>
-      <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div><div className="table-scroll" tabIndex={0} role="region" aria-label="Facility metrics table"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted" role="status">Showing {rows.length} of {data.facilities.length} facilities. Demo inputs—not predictions.</p></section>
+      <section className="panel" id="exposures"><div className="section-head"><div><p className="eyebrow">FACILITY-LEVEL EVIDENCE</p><h2>Credit explorer</h2></div><label>Search facilities<input placeholder="Borrower, ID or industry" value={query} onChange={e => setQuery(e.target.value)}/></label></div>
+        <div className="form-grid">
+          <div><label htmlFor="facility-geography">Filter by geography</label>
+            <select id="facility-geography" value={geography} onChange={e => setGeography(e.target.value)}>
+              <option value="">All geographies</option>
+              {[...new Set(data.facilities.map(r => r.geography))].sort().map(g => <option key={g}>{g}</option>)}
+            </select></div>
+          <div><label htmlFor="facility-rating">Filter by rating</label>
+            <select id="facility-rating" value={rating} onChange={e => setRating(e.target.value)}>
+              <option value="">All ratings</option>
+              {[...new Set(data.facilities.map(r => r.rating))].sort().map(r => <option key={r}>{r}</option>)}
+            </select></div>
+        </div><div className="table-scroll" tabIndex={0} role="region" aria-label="Facility metrics table"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted" role="status">Showing {rows.length} of {data.facilities.length} facilities. Portfolio totals use all facilities in this dataset.</p>
+        <FacilityReview key={JSON.stringify([data.dataset_version, query, geography, rating])}
+          rows={rows} datasetId={datasetId} version={data.dataset_version}/>
+      </section>
       <section className="panel" id="stress"><p className="eyebrow">SCENARIO SENSITIVITY</p><h2>Explore a change in assumptions.</h2><p className="muted">Multipliers change inputs, not the underlying economic model. PD and LGD are capped at 100%.</p><form onSubmit={runStress}>
         <label htmlFor="stress-preset">Scenario preset</label>
         <select id="stress-preset" value={preset} onChange={e => choosePreset(e.target.value as Preset)}>
