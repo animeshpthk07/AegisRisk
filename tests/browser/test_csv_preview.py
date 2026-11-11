@@ -602,7 +602,7 @@ def test_facility_review_filters_compares_and_keeps_model_inputs_scoped(page, wi
         "table", name="Facility, borrower and portfolio · INR, one year"
     )
     counts = comparison.get_by_role("row").filter(has_text="Facilities")
-    assert counts.get_by_role("cell").all_text_contents() == ["1", "1", "40"]
+    expect(counts.get_by_role("cell")).to_have_text(["1", "1", "40"])
     model = panel.get_by_role("region", name="Model risk drivers", exact=True)
     expect(model.get_by_role("row")).to_have_count(5)
     live = httpx.get(
