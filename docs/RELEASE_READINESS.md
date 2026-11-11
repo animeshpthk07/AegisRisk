@@ -1,12 +1,23 @@
 # Release readiness
 
-Updated 2026-11-03. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-11-11. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
 AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The published educational preview remains pinned to `6611ec20fc941888419ac501c482d7d3054459d5`. The later verified development checkpoints below record workspace access, browser script policy and demo-test reliability work.
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
+
+## Verified main-branch integrations through 10 November 2026
+
+| Change | Main commit | Application checks | Demo image |
+| --- | --- | --- | --- |
+| PostgreSQL backup and restore in a separate fictional database | [474866b](https://github.com/animeshpthk07/AegisRisk/commit/474866b05e99311224c6f9be84353ab4aeac3af8) | [#170 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/41634708166) | [#66 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/41634708175) |
+| Model confusion matrix and threshold sensitivity | [9aafd27](https://github.com/animeshpthk07/AegisRisk/commit/9aafd27dc7b3e49682169c1c2218381b5575570a) | [#178 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/41729441512) | [#72 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/41729441635) |
+| Portfolio concentration and expected-loss contributions | [06dab76](https://github.com/animeshpthk07/AegisRisk/commit/06dab76452e94389cf4d6afe2ad9b74f8688c900) | [#200 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/42853801444) | [#92 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/42853801560) |
+| Stress presets, industry reconciliation and largest facility changes | [9e7560f](https://github.com/animeshpthk07/AegisRisk/commit/9e7560fa9b4b2961d5364ca4ceebb05a9a091177) | [#209 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995083) | [#101 passed](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995198) |
+
+The backup check restores disposable PostgreSQL data and verifies the recovered contents. Model and stress checks exercise mathematical examples and browser workflows on fictional data. The [case study](CASE_STUDY.md) gives reviewers two examples they can recalculate. See [PR #9](https://github.com/animeshpthk07/AegisRisk/pull/9) for the borrower explorer's separate verification history.
 
 ## Combined main integration — verified 2026-11-03
 
