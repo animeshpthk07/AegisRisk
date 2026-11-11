@@ -1,10 +1,20 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-11-03. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-11-11. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
 The frontend-to-backend-to-database flow was verified locally. The foundation source is now published at https://github.com/animeshpthk07/AegisRisk. Current work uses VS Code for the Web and GitHub in the visible browser, as requested. The local preview is not a public deployment.
+
+### Borrower and report release verification · 11 November 2026
+
+The borrower explorer compares a selected facility with its borrower and the active portfolio. Supplied portfolio PD, illustrative model PD and stressed PD are labelled separately. Imported facilities receive no model score without linked financial ratios. Main commit [c6fd703](https://github.com/animeshpthk07/AegisRisk/commit/c6fd703b21352e96aec8c3931b4b6cdc4414d49c) passed [application #227](https://github.com/animeshpthk07/AegisRisk/actions/runs/42971185295) and [demo #116](https://github.com/animeshpthk07/AegisRisk/actions/runs/42971185241).
+
+Risk reports now show exposure concentration, largest loss contributors and held-out synthetic model metrics. Scenario reports show each industry's loss change. The [sample report](SAMPLE_RISK_REPORT.md) reconciles a ₹787,500 increase to 20 fictional Energy facilities. The [case study](CASE_STUDY.md) includes a smaller example readers can work through by hand.
+
+[PR #10](https://github.com/animeshpthk07/AegisRisk/pull/10) merged at [317c656](https://github.com/animeshpthk07/AegisRisk/commit/317c656e1e56d125732149f95e875217ef0ae7b8). The [application run #230](https://github.com/animeshpthk07/AegisRisk/actions/runs/43009274722) passed all six jobs, including Chromium, Firefox, WebKit and PostgreSQL. [Demo run #118](https://github.com/animeshpthk07/AegisRisk/actions/runs/43009274701) passed. A [report verification job](https://github.com/animeshpthk07/AegisRisk/actions/runs/42971057447/job/130359388471) rendered six baseline pages, eight scenario pages and three literal-label pages. All 17 were inspected in the browser for legibility, table headers, appendix breaks and page numbers.
+
+These checks establish reproducibility and the behavior of this synthetic demonstration. Independent validation with observed credit outcomes and hosted operations are outside this checkpoint. Hosting remains deferred by owner choice.
 
 ### Inactivity cleanup and reviewer materials — verified 2026-11-03
 
