@@ -14,8 +14,8 @@ from fastapi import HTTPException
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from starlette.requests import Request
-from test_api import client as client  # noqa: PLC0414 - re-export the pytest fixture
 from test_api import CSV_ROW, csv_body, save_csv
+from test_api import client as client  # noqa: PLC0414 - re-export the pytest fixture
 
 from aegisrisk import database
 from aegisrisk.access import authenticate, current_principal
