@@ -961,6 +961,20 @@ def test_printable_report_download_render_and_offline_safety(page, kind, width):
         )
         expect(printed.get_by_role("heading", name=title, exact=True)).to_be_visible()
         expect(printed.get_by_text(label.decode(), exact=False)).to_be_visible()
+        concentration = printed.get_by_role("heading", name="Exposure concentration")
+        expect(concentration).to_be_visible()
+        metrics = printed.get_by_role(
+            "table", name="Held-out performance on fictional profiles"
+        )
+        expect(metrics.get_by_role("row")).to_have_count(4)
+        expect(metrics).to_contain_text("calibrated logistic")
+        if kind == "scenario":
+            sectors = printed.get_by_role(
+                "table", name="Industry contributions to the scenario · INR"
+            )
+            energy = sectors.get_by_role("row").filter(has_text="Energy")
+            cells = energy.get_by_role("cell")
+            expect(cells).to_have_text(["Energy", "50", "100", "50"])
         expect(printed.locator("script, iframe, img, link")).to_have_count(0)
         assert dialogs == []
         assert not any(url.startswith(("http:", "https:")) for url in requests)

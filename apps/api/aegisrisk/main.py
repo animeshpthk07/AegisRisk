@@ -18,6 +18,7 @@ from .access import authenticate, configuration, current_principal
 from .database import get_session
 from .facility_review import router as facility_review_router
 from .imports import router as import_router
+from .model_lab import get_model
 from .model_lab import router as model_router
 from .models import Facility, SavedPortfolio
 from .pdf_report import pdf_envelope
@@ -264,6 +265,7 @@ def baseline_report_payload(rows, dataset_id):
     """Read-only baseline evidence; rows are loaded once by the caller."""
     rows = sorted(rows, key=lambda row: row.id)
     baseline = portfolio_payload(rows, dataset_id)
+    model_card = get_model().card
     inputs = [
         {key: getattr(row, key) for key in
          ("id", "borrower", "industry", "geography", "rating")}
@@ -277,6 +279,14 @@ def baseline_report_payload(rows, dataset_id):
         "report_kind": "baseline_only",
         "scenario_included": False,
         **baseline,
+        "model_evaluation": {
+            "model_id": model_card["model_id"],
+            "dataset_sha256": model_card["dataset_sha256"],
+            "test_rows": model_card["splits"]["test"]["rows"],
+            "test_events": model_card["splits"]["test"]["events"],
+            "metrics": model_card["metrics"],
+            "scope": "Held-out fictional model data. Portfolio EL uses supplied PDs.",
+        },
         "explanation": explanation_payload(baseline["summary"]),
         "source": {
             "canonical_sha256": sha256(canonical.encode("utf-8")).hexdigest(),
@@ -303,7 +313,7 @@ def baseline_report_payload(rows, dataset_id):
             "notes": [
                 "Summary numbers are JSON display values; decimal evidence is provided separately.",
                 "Weighted PD/LGD use EAD. Borrower HHI sums squared borrower exposure shares.",
-                "No stress scenario, trained model, investment advice or lending decision is included.",
+                "Baseline EL uses supplied PDs. The model evaluation describes a separate test set.",
                 "Not IFRS 9 ECL, regulatory capital, an audit opinion or production validation.",
             ],
         },

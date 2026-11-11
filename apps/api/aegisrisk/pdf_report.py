@@ -115,6 +115,43 @@ def render_pdf(report):
                   ], [WIDTH * .54, WIDTH * .46])]
     else:
         story.append(p("Baseline only. No stress scenario or model prediction is included."))
+    analytics = baseline.get("analytics")
+    if analytics:
+        story += [p("Exposure concentration", "h2"),
+                  p("HHI is the sum of squared exposure shares within each grouping. "
+                    "A value of 1 means all exposure falls in one group."),
+                  table(["Grouping", "Exposure HHI (0-1)"], [
+                      [key.title(), ratio(analytics["breakdowns"][key]["hhi"])]
+                      for key in ("industry", "geography", "rating", "borrower")
+                  ], [WIDTH * .54, WIDTH * .46])]
+        top = analytics["top_facilities"]
+        if top:
+            story += [p("Largest expected-loss contributors", "h2"),
+                      table(["Facility", "Industry", "EAD", "Expected loss", "Loss share"], [
+                          [item["id"], item["industry"], money(item["ead"]),
+                           money(item["expected_loss"]), ratio(item["loss_share"])]
+                          for item in top
+                      ], [WIDTH * .23, WIDTH * .20, WIDTH * .20, WIDTH * .20, WIDTH * .17]),
+                      p("Up to ten facilities, ordered by expected loss. Shares are fractions.")]
+    evaluation = baseline.get("model_evaluation")
+    if evaluation:
+        story += [p("Synthetic model evaluation", "h2"), p(evaluation["scope"]),
+                  p(f"Model: {evaluation['model_id']} | Test profiles: {evaluation['test_rows']} "
+                    f"| Simulated events: {evaluation['test_events']}"),
+                  table(["Estimator", "ROC-AUC", "Average precision", "Brier score"], [
+                      [name.replace("_", " "), ratio(metrics["roc_auc"]),
+                       ratio(metrics["average_precision"]), ratio(metrics["brier_score"])]
+                      for name, metrics in evaluation["metrics"].items()
+                  ], [WIDTH * .34, WIDTH * .20, WIDTH * .25, WIDTH * .21]),
+                  p("Higher ROC-AUC and average precision indicate better ranking. A lower "
+                    "Brier score indicates lower squared probability error."),
+                  p("Model dataset SHA-256: " + evaluation["dataset_sha256"])]
+    if scenario and report["scenario"].get("industry_impacts"):
+        story += [p("Scenario losses by industry", "h2"),
+                  table(["Industry", "Baseline EL", "Stressed EL", "Change"], [
+                      [item["industry"], money(item["baseline_el"]), money(item["stressed_el"]),
+                       money(item["delta_el"])] for item in report["scenario"]["industry_impacts"]
+                  ], [WIDTH * .31, WIDTH * .23, WIDTH * .23, WIDTH * .23])]
     story += [p("Provenance and interpretation", "h2"),
               p("Canonical source SHA-256: " + baseline["source"]["canonical_sha256"]),
               p("A fingerprint identifies the normalized input rows, not the original "

@@ -67,6 +67,33 @@ export function renderReportHtml(report) {
     '</div><p>EAD-weighted PD: ' + display(base.summary.weighted_pd, true) +
     ' · EAD-weighted LGD: ' + display(base.summary.weighted_lgd, true) +
     ' · Borrower HHI (0–1): ' + display(base.summary.borrower_hhi) + '</p></section>';
+  if (base.analytics) {
+    const { breakdowns, top_facilities: top } = base.analytics;
+    if (!breakdowns || !Array.isArray(top) || top.length > 10) throw new Error('Invalid concentration evidence.');
+    content += '<section><h2>Exposure concentration</h2>' +
+      table('Exposure HHI by grouping (0–1)', ['Grouping', 'HHI'],
+        ['industry', 'geography', 'rating', 'borrower'].map(key => [key, display(breakdowns[key].hhi)])) +
+      table('Largest expected-loss contributors · up to ten facilities',
+        ['Facility', 'Industry', 'EAD · INR', 'Expected loss · INR', 'Loss share'],
+        top.map(item => [text(item.id), text(item.industry), display(item.ead),
+          display(item.expected_loss), display(item.loss_share, true)])) + '</section>';
+  }
+  if (base.model_evaluation) {
+    const model = base.model_evaluation;
+    if (!/^[a-f0-9]{64}$/.test(model.dataset_sha256) || !Number.isInteger(model.test_rows) ||
+        !Number.isInteger(model.test_events) || model.test_rows <= 0 || model.test_events < 0 ||
+        model.test_events > model.test_rows) throw new Error('Invalid model evaluation evidence.');
+    const modelRows = ['training_prior', 'raw_logistic', 'calibrated_logistic'].map(name => {
+      const metrics = model.metrics[name];
+      return [name.replaceAll('_', ' '), display(metrics.roc_auc), display(metrics.average_precision), display(metrics.brier_score)];
+    });
+    content += '<section><h2>Synthetic model evaluation</h2><p>' + text(model.scope) + '</p><p>Model: ' +
+      text(model.model_id) + ' · Test profiles: ' + display(model.test_rows) + ' · Simulated events: ' +
+      display(model.test_events) + '</p>' + table('Held-out performance on fictional profiles',
+        ['Estimator', 'ROC-AUC', 'Average precision', 'Brier score'], modelRows) +
+      '<p>Higher ROC-AUC and average precision indicate better ranking. A lower Brier score indicates lower squared probability error.</p>' +
+      '<p class="fingerprint">Model dataset SHA-256: ' + text(model.dataset_sha256) + '</p></section>';
+  }
   if (isScenario) {
     const scenario = report.scenario;
     const details = scenario?.calculation;
@@ -101,6 +128,15 @@ export function renderReportHtml(report) {
         ['ID', 'Affected', 'PD', 'LGD', 'EAD', 'Baseline EL', 'Stressed EL', 'Delta EL', 'Caps'], scenarioRows) +
       '<p>Scenario Decimal precision: ' + display(details.decimal_precision) +
       ' · Rounding: ' + text(details.decimal_rounding) + '</p>' + list(details.notes) + '</section>';
+    if (scenario.industry_impacts) {
+      if (!Array.isArray(scenario.industry_impacts) || scenario.industry_impacts.length > rows.length) {
+        throw new Error('Invalid scenario industry evidence.');
+      }
+      content += '<section><h2>Scenario losses by industry</h2>' +
+        table('Industry contributions to the scenario · INR', ['Industry', 'Baseline EL', 'Stressed EL', 'Change'],
+          scenario.industry_impacts.map(item => [text(item.industry), display(item.baseline_el),
+            display(item.stressed_el), display(item.delta_el)])) + '</section>';
+    }
   }
   content += '<section><h2>Calculation note</h2><p>' + text(base.explanation.text) + '</p><p>' +
     text(base.explanation.disclaimer) + '</p></section><section><h2>Baseline facility evidence</h2>' +
