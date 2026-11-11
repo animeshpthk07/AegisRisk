@@ -14,9 +14,11 @@ AegisRisk is an educational banking risk workbench. Start with a fictional INR c
 
 The application uses Next.js, React and TypeScript for the interface, FastAPI and Python for analysis, and PostgreSQL with SQLAlchemy and Alembic for persistence. Optional workspace access separates saved datasets. Docker Compose runs the stack locally. GitHub Actions exercises the API, the three browser engines, the database lifecycle and the demo container. [Architecture](docs/ARCHITECTURE.md) · [Development guide](docs/DEVELOPMENT.md) · [Security overview](docs/SECURITY.md)
 
-## Verified baseline on main
+## Published portfolio preview · 11 November 2026
 
-The integrated concentration and stress calculations passed [application run #209](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995083) and [demo image run #101](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995198) on commit [9e7560f](https://github.com/animeshpthk07/AegisRisk/commit/9e7560fa9b4b2961d5364ca4ceebb05a9a091177). The published preview and later development checks are recorded separately. Hosting is deferred by owner choice. This MIT-licensed workbench demonstrates methods on fictional data and has no banking or regulatory endorsement.
+The [v0.2.0-preview.1 release](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.1) includes the borrower explorer and risk reports on verified commit [317c656](https://github.com/animeshpthk07/AegisRisk/commit/317c656e1e56d125732149f95e875217ef0ae7b8). All six [application jobs](https://github.com/animeshpthk07/AegisRisk/actions/runs/43009274722) and the [demo container check](https://github.com/animeshpthk07/AegisRisk/actions/runs/43009274701) passed on that commit.
+
+Read the [sample risk report](docs/SAMPLE_RISK_REPORT.md) to see how ₹787,500 of additional expected loss reconciles to 20 fictional Energy facilities. The same report shows held-out model metrics for a separate 600-profile test set. Hosting is deferred by owner choice. The MIT-licensed demonstration uses synthetic data and has no banking or regulatory endorsement.
 
 ## Historical development checkpoint — 2 November 2026
 
