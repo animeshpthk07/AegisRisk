@@ -389,8 +389,15 @@ def test_report_matches_dashboard_and_is_read_only(client, monkeypatch):
     assert report["currency"] == "INR"
     assert report["horizon"] == "one_year"
     assert datetime.fromisoformat(report["generated_at"]).utcoffset().total_seconds() == 0
-    for key in ("summary", "facilities", "segments", "warnings"):
+    for key in ("summary", "facilities", "segments", "warnings", "analytics"):
         assert report[key] == before[key]
+    card = client.get("/api/v1/model-card").json()
+    model = report["model_evaluation"]
+    assert model["dataset_sha256"] == card["dataset_sha256"]
+    assert model["model_id"] == card["model_id"]
+    assert model["metrics"] == card["metrics"]
+    assert model["test_rows"] == card["splits"]["test"]["rows"] == 600
+    assert model["test_events"] == card["splits"]["test"]["events"]
     inputs = report["source"]["input_rows"]
     assert inputs[0]["pd"] == "0.1"
     assert inputs[0]["lgd"] == "0.5"
@@ -778,6 +785,13 @@ def test_pdf_download_uses_same_evidence_and_does_not_write(client, scenario):
     assert "Fictional A" in text
     assert "1,000.00" in text and "50.00" in text
     assert "NOT A CREDIT DECISION" in text
+    assert "Exposure concentration" in text
+    assert "Largest expected-loss contributors" in text
+    assert "Synthetic model evaluation" in text
+    model = baseline["model_evaluation"]
+    assert model["dataset_sha256"] in text.replace("\n", "")
+    brier = model["metrics"]["calibrated_logistic"]["brier_score"]
+    assert f"{brier:.6f}" in text
     assert len(pdf.pages) >= 2
     for index, page in enumerate(pdf.pages, 1):
         assert f"Page {index}" in page.extract_text()
@@ -787,6 +801,7 @@ def test_pdf_download_uses_same_evidence_and_does_not_write(client, scenario):
     assert report["scenario_included"] is scenario
     if scenario:
         assert "Scenario comparison" in text
+        assert "Scenario losses by industry" in text
         assert "Baseline portfolio at a glance" in text
         assert "Baseline evidence limitations" in text
         assert "Scenario limitations" in text
