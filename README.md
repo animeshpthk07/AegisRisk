@@ -1,31 +1,24 @@
 # AegisRisk
 
-Banking risk intelligence and explainable credit analytics. Educational portfolio project; synthetic data only. Not a credit approval system and not affiliated with a bank or regulator.
+AegisRisk is an educational banking risk workbench. Start with a fictional INR credit portfolio, find where exposure and expected loss are concentrated, then trace the effect of a sector shock to individual facilities. All portfolio loss calculations use a one-year horizon. This independent student project uses synthetic data.
 
-**Mathematics calculates. Models estimate. AI explains. Humans decide.**
+**Start with the [five-minute case study](docs/CASE_STUDY.md).** It follows a sector shock from ₹70 to ₹185 in a hand-checkable test portfolio and explains how to distinguish supplied PD, model-estimated PD and stressed PD. To run the application, use the [demo guide](docs/DEMO_GUIDE.md). To review its checks and release history, see [release readiness](docs/RELEASE_READINESS.md).
 
-Implementation is in progress. See [milestones](docs/MILESTONES.md) for verified status. External AI is disabled by decision; no API key is needed. The foundation source is published on [GitHub](https://github.com/animeshpthk07/AegisRisk) under the MIT license. Hosting is deferred by owner decision; this deliverable stays on GitHub for now.
+## What you can inspect
 
-## Current foundation scope
+- **Portfolio analytics.** Compare exposure and loss contributions by industry, geography, rating and borrower. Inspect concentration, the top facilities and their shares. [Calculation methods](docs/PORTFOLIO_ANALYTICS.md)
+- **Borrower review.** Filter facilities and compare one facility with its borrower and portfolio. Inspect fixed-PD-multiplier sensitivity and, on the 40 built-in cases, the fictional financial ratios behind a separate model estimate.
+- **Stress testing.** Run baseline, mild, severe, industry-specific or custom scenarios. Reconcile industry changes to the total and trace the largest increases or decreases to individual facilities.
+- **Model evidence.** Inspect logistic-regression training, calibration, held-out evaluation, threshold trade-offs and feature contributions. The educational model uses fictional event labels. [Model methodology](docs/MODEL_LAB.md)
+- **Data and reporting.** Preview bounded CSV and values-only XLSX files, review validation issues and optionally save immutable synthetic snapshots. Export baseline and scenario evidence as JSON, printable HTML or PDF. Grounded commentary uses the calculated values and requires no external AI key.
 
-- Next.js / React / TypeScript dashboard with accessible tables, Recharts, dark/light themes and error states.
-- FastAPI versioned API, SQLAlchemy facilities, Alembic migrations and explicit fictional seed.
-- Facility/portfolio expected loss, EAD-weighted metrics, borrower HHI, industry exposures and bounded scenario sensitivity.
-- Deterministic narrative derived from backend totals, not an LLM.
-- Optional administrator-issued bearer-token access with viewer/analyst roles and isolated saved workspaces. See [access configuration and limits](docs/AUTHENTICATION.md).
-- PostgreSQL Docker Compose configuration, local SQLite verification fallback, tests and CI definition.
-- Bounded synthetic CSV and values-only XLSX preview: file validation, row-level issues and independently calculated totals, without saving or replacing the active portfolio.
-- Opt-in reviewed CSV / XLSX snapshots: immutable saved portfolios, duplicate-file reuse, dataset selection and dataset-scoped calculations. Saving is disabled by default.
-- Downloadable baseline JSON, printable HTML and server-generated PDF reports with decimal calculation evidence, deterministic explanations, dataset identity and a canonical source fingerprint.
-- Scenario-comparison JSON, printable HTML and server-generated PDF reports bound to the calculated assumptions, with baseline/stressed totals, scope, cap flags and facility-level decimal evidence.
+The application uses Next.js, React and TypeScript for the interface, FastAPI and Python for analysis, and PostgreSQL with SQLAlchemy and Alembic for persistence. Optional workspace access separates saved datasets. Docker Compose runs the stack locally. GitHub Actions exercises the API, the three browser engines, the database lifecycle and the demo container. [Architecture](docs/ARCHITECTURE.md) · [Development guide](docs/DEVELOPMENT.md) · [Security overview](docs/SECURITY.md)
 
-- Isolated synthetic Model Lab: trained logistic regression, separate calibration/test data, baseline comparisons and raw-score contributions. See [model methodology](docs/MODEL_LAB.md) and the verified checkpoint below; synthetic test performance is not real-world model validation.
+## Verified baseline on main
 
-**Not yet the complete product:** optional workspace tokens are a limited access mechanism; production identity, a complete security review and verified public deployment remain unfinished. The trained model is a synthetic research demonstration, not a validated banking model. No real-world banking validation or regulatory compliance claims.
+The integrated concentration and stress calculations passed [application run #209](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995083) and [demo image run #101](https://github.com/animeshpthk07/AegisRisk/actions/runs/42855995198) on commit [9e7560f](https://github.com/animeshpthk07/AegisRisk/commit/9e7560fa9b4b2961d5364ca4ceebb05a9a091177). The published preview and later development checks are recorded separately. Hosting is deferred by owner choice. This MIT-licensed workbench demonstrates methods on fictional data and has no banking or regulatory endorsement.
 
-Read [development guide](docs/DEVELOPMENT.md), [architecture](docs/ARCHITECTURE.md), [security notes](docs/SECURITY.md), [API contract](docs/CONTRACT.md), and [release readiness](docs/RELEASE_READINESS.md). Verification results are recorded in the milestone tracker, not inferred from the existence of source files.
-
-## Latest verified development checkpoint — 2 November 2026
+## Historical development checkpoint — 2 November 2026
 
 Source `fb920c2945beb4ed92ef34f7d60cb5a34a5751bb` passed all six jobs in [application run #132](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265512) and [demo image run #46](https://github.com/animeshpthk07/AegisRisk/actions/runs/41317265488). The current workbench includes optional workspace access and a fresh nonce-based browser script/resource policy. The policy intentionally allows chart style attributes; production identity, storage operations and independent security/model validation remain open.
 
