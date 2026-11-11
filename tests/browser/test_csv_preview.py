@@ -591,6 +591,55 @@ def test_stress_presets_reconcile_sector_results_and_clear_on_edit(page, width):
     expect(scope).to_have_value("")
 
 
+@pytest.mark.parametrize("width", [1440, 320])
+def test_facility_review_filters_compares_and_keeps_model_inputs_scoped(page, width):
+    page.set_viewport_size({"width": width, "height": 1000})
+    panel = page.get_by_role("region", name="Borrower risk review", exact=True)
+    picker = panel.get_by_label("Inspect a facility", exact=True)
+    picker.select_option("SYN-001")
+    expect(panel).to_contain_text("Fictional Borrower 001 · SYN-001")
+    comparison = panel.get_by_role(
+        "table", name="Facility, borrower and portfolio · INR, one year"
+    )
+    counts = comparison.get_by_role("row").filter(has_text="Facilities")
+    expect(counts.get_by_role("cell")).to_have_text(["1", "1", "40"])
+    model = panel.get_by_role("region", name="Model risk drivers", exact=True)
+    expect(model.get_by_role("row")).to_have_count(5)
+    live = httpx.get(
+        f"{BASE_URL}/api/facility-review", params={"facility_id": "SYN-001"}
+    )
+    assert live.status_code == 200
+    probability = live.json()["model"]["calibrated_probability"]
+    expect(panel).to_contain_text(f"Illustrative model PD · {probability * 100:.2f}%")
+    geography = page.get_by_label("Filter by geography", exact=True)
+    geography.select_option("West")
+    expect(picker).to_have_value("")
+    expect(model).to_have_count(0)
+    expect(picker.locator('option[value="SYN-001"]')).to_have_count(0)
+    rating = page.get_by_label("Filter by rating", exact=True)
+    rating.select_option("B")
+    count = page.locator("#exposures").get_by_role("status")
+    expect(count).to_contain_text("Showing 0")
+    geography.select_option("")
+    rating.select_option("")
+    same_id = VALID.replace(b"SYN-E2E-001", b"SYN-001").replace(
+        b"Fictional Birch", b"Fictional Borrower 001"
+    )
+    saved = save_snapshot(same_id, "Fictional linked ID " + uuid4().hex[:8])
+    page.get_by_role("button", name="Refresh saved portfolios", exact=True).click()
+    active = page.get_by_label("Active portfolio", exact=True)
+    expect(active.locator(f'option[value="{saved["id"]}"]')).to_have_count(1)
+    active.select_option(saved["id"])
+    expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+        "1 fictional facilities"
+    )
+    picker.select_option("SYN-001")
+    expect(panel).to_contain_text("No linked financial ratios")
+    expect(panel).to_contain_text("₹100 expected loss")
+    expect(panel.get_by_role("region", name="Model risk drivers")).to_have_count(0)
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+
+
 def download_scenario_report(page):
     with page.expect_download() as pending:
         page.get_by_role(

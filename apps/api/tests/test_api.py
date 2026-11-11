@@ -900,3 +900,48 @@ def test_stress_largest_changes_rank_absolute_delta_and_limit_ties():
     ranked = result["largest_changes"]
     assert [row["id"] for row in ranked] == ["SYN-12"] + [f"SYN-{i:02d}" for i in range(9)]
     assert [row["delta_el"] for row in ranked] == [-10] + [-5] * 9
+
+
+def test_demo_financial_profile_is_stable_and_uses_the_existing_model():
+    from aegisrisk.facility_review import demo_profile, review_facility
+    from aegisrisk.model_lab import predict
+
+    facility = Facility(id="SYN-001", borrower="Fictional Borrower 001", industry="Energy",
+                        geography="West", rating="B", pd=Decimal(".8"), lgd=Decimal(".5"),
+                        ead=Decimal(100))
+    other = Facility(id="SYN-OTHER", borrower=facility.borrower, industry="Energy",
+                     geography="West", rating="B", pd=Decimal(".1"), lgd=Decimal(".5"),
+                     ead=Decimal(200))
+    review = review_facility([facility, other], facility.id, None)
+    profile = demo_profile(facility, None)
+    assert review["model"] == predict(profile)
+    assert review["profile_version"] == "demo-financial-ratios-v1"
+    assert review["facility"]["expected_loss"] == 40
+    assert review["sensitivity"] == {
+        "pd_multiplier": 2, "stressed_pd": 1, "stressed_el": 50, "delta_el": 10,
+    }
+    assert review["borrower"]["total_expected_loss"] == 50
+    assert review["borrower"]["weighted_pd"] == pytest.approx(1 / 3)
+    facility.pd = Decimal(".01")
+    assert demo_profile(facility, None) == profile
+    facility.borrower = "Fictional Unlinked"
+    assert demo_profile(facility, None) is None
+
+
+def test_facility_review_rejects_cross_dataset_ids_and_keeps_imports_unscored(saved_client):
+    # An uploaded row can share a demo ID and name without inheriting its ratios.
+    row = CSV_ROW.copy()
+    row[:2] = ["SYN-001", "Fictional Borrower 001"]
+    saved = save_csv(saved_client, csv_body([row])).json()["portfolio"]
+    endpoint = "/api/v1/facility-review"
+    params = {"facility_id": "SYN-001", "dataset_id": saved["id"]}
+    response = saved_client.get(endpoint, params=params)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["dataset_id"] == saved["id"]
+    assert data["facility"]["expected_loss"] == 50
+    assert data["model"] is None and data["profile_version"] is None
+    assert data["sensitivity"]["stressed_el"] == 100
+    assert saved_client.get(endpoint, params={"facility_id": "SYN-001"}).status_code == 404
+    assert saved_client.get(endpoint, params=params | {"facility_id": "A"}).status_code == 404
+    assert saved_client.get(endpoint, params={"facility_id": ""}).status_code == 422
