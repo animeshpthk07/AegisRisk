@@ -1910,6 +1910,19 @@ def test_native_page_zoom_allows_search_and_review(browser, tmp_path):
                 "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
             )
             expect(search).to_be_in_viewport(ratio=1)
+            for label in ("Filter by geography", "Filter by rating"):
+                control = page.get_by_role("combobox", name=label, exact=True)
+                # Reserve room for the native arrow as well as the visible option text.
+                fits = control.evaluate("""el => {
+                    const css = getComputedStyle(el);
+                    const ctx = document.createElement('canvas').getContext('2d');
+                    ctx.font = css.fontSize + ' ' + css.fontFamily;
+                    const text = ctx.measureText(el.selectedOptions[0].text).width;
+                    const usable = el.clientWidth - parseFloat(css.paddingLeft)
+                        - parseFloat(css.paddingRight) - 20;
+                    return usable >= Math.ceil(text);
+                }""")
+                assert fits, f"{label} clips the selected value at {zoom}x zoom"
             page.evaluate("""() => new Promise(resolve =>
                 requestAnimationFrame(() => requestAnimationFrame(resolve)))""")
             # Capture the complete visible surface, without a CSS-pixel clip.
