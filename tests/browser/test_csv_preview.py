@@ -1860,3 +1860,53 @@ def test_invalid_contribution_evidence_is_rejected_and_reload_recovers(
         "industry"
     )
     expect(panel.get_by_role("alert")).to_have_count(0)
+
+
+@pytest.mark.skipif(BROWSER_ENGINE != "chromium", reason="Uses Chromium's tab zoom API")
+def test_native_page_zoom_allows_search_and_review(browser, tmp_path):
+    # This temporary CI profile has no saved credentials or extension permissions.
+    extension = tmp_path / "zoom-control"
+    extension.mkdir()
+    manifest = {"manifest_version": 3, "name": "Local zoom test", "version": "1.0",
+                "background": {"service_worker": "worker.js"}}
+    (extension / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (extension / "worker.js").write_text(
+        "chrome.runtime.onInstalled.addListener(() => {});", encoding="utf-8"
+    )
+    with browser.browser_type.launch_persistent_context(
+        tmp_path / "profile", channel="chromium", headless=True, no_viewport=True,
+        args=["--window-size=1440,1000", f"--disable-extensions-except={extension}",
+              f"--load-extension={extension}"],
+    ) as context:
+        page = context.pages[0]
+        page.goto(BASE_URL)
+        page.bring_to_front()
+        expect(page.get_by_role("region", name="Portfolio metrics")).to_contain_text(
+            "40 fictional facilities"
+        )
+        workers = context.service_workers
+        worker = workers[0] if workers else context.wait_for_event("serviceworker")
+        width = page.evaluate("innerWidth")
+        dpr = page.evaluate("devicePixelRatio")
+        assert width >= 1280
+        for zoom in (2, 4):
+            actual = worker.evaluate("""async factor => {
+                const [tab] = await chrome.tabs.query({active: true});
+                await chrome.tabs.setZoom(tab.id, factor);
+                return chrome.tabs.getZoom(tab.id);
+            }""", zoom)
+            assert actual == zoom
+            wait_for_browser_condition(
+                page, f"Math.abs(devicePixelRatio - {dpr * zoom}) < 0.02"
+            )
+            assert abs(page.evaluate("innerWidth") - width / zoom) <= 2
+            search = page.get_by_role("textbox", name="Search facilities")
+            search.fill("SYN-001")
+            status = page.locator("#exposures").get_by_role("status")
+            expect(status).to_contain_text("Showing 1 of 40 facilities")
+            search.fill("")
+            expect(status).to_contain_text("Showing 40 of 40 facilities")
+            assert page.evaluate("""() => document.documentElement.scrollWidth
+                <= document.documentElement.clientWidth + 1""")
+            page.locator("#overview").scroll_into_view_if_needed()
+            page.screenshot(path=str(ARTIFACTS / f"native-zoom-{zoom}00.png"))
