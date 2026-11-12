@@ -3,6 +3,7 @@
 import json
 import secrets
 import time
+from datetime import datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 from uuid import uuid4
@@ -212,3 +213,64 @@ def test_migration_preserves_legacy_data_and_blocks_unsafe_downgrade(tmp_path, m
     with engine.connect() as connection:
         assert connection.scalar(text("SELECT COUNT(*) FROM saved_portfolios")) == 2
     engine.dispose()
+
+
+AUDIT_LOGGER = "uvicorn.error.aegisrisk.audit"
+
+
+def audit_events(caplog):
+    return [json.loads(record.getMessage()) for record in caplog.records
+            if record.name == AUDIT_LOGGER]
+
+
+def test_audit_distinguishes_snapshot_outcomes(client, identities, caplog):
+    users, headers = identities
+    caplog.set_level("INFO", logger=AUDIT_LOGGER)
+    assert save_csv(client).status_code == 401
+    assert save_csv(client, **headers[2]).status_code == 403
+    assert save_csv(client, **headers[0]).status_code == 201
+    assert save_csv(client, **headers[0]).status_code == 200
+    changed = headers[0] | {"x-aegisrisk-preview-digest": "unreviewed"}
+    assert save_csv(client, **changed).status_code == 409
+    assert client.get("/api/v1/saved-portfolios", headers=headers[0]).status_code == 200
+    events = audit_events(caplog)
+    assert [(e["status"], e["outcome"]) for e in events] == [
+        (401, "denied"), (403, "denied"), (201, "created"), (200, "reused"), (409, "rejected"),
+    ]
+    allowed = {"schema", "at", "action", "outcome", "status", "actor", "workspace", "role"}
+    actors = [None, users[2], users[0], users[0], users[0]]
+    for event, actor in zip(events, actors, strict=True):
+        assert set(event) == allowed
+        assert event["schema"] == "aegisrisk.audit.v1"
+        assert event["action"] == "snapshot.save"
+        assert datetime.fromisoformat(event["at"]).utcoffset() == timedelta(0)
+        for field, key in [("actor", "subject"), ("workspace", "workspace"), ("role", "role")]:
+            assert event[field] == (actor[key] if actor else None)
+
+
+@pytest.mark.parametrize("method,path,action", [
+    ("GET", "report", "report.baseline.json"),
+    ("GET", "report-pdf", "report.baseline.pdf"),
+    ("POST", "scenario-report", "report.scenario.json"),
+    ("POST", "scenario-report-pdf", "report.scenario.pdf"),
+])
+def test_report_audit_uses_fixed_labels(client, caplog, method, path, action):
+    caplog.set_level("INFO", logger=AUDIT_LOGGER)
+    options = {"json": {}} if method == "POST" else {}
+    assert client.request(method, f"/api/v1/{path}", **options).status_code == 200
+    params = {"dataset_id": "private-query-example"}
+    assert client.request(method, f"/api/v1/{path}", params=params, **options).status_code == 422
+    events = audit_events(caplog)
+    assert [(e["action"], e["outcome"], e["status"]) for e in events] == [
+        (action, "generated", 200), (action, "rejected", 422),
+    ]
+    assert all(e["actor"] == e["workspace"] == "local" for e in events)
+    assert "private-query-example" not in json.dumps(events)
+
+
+def test_audit_records_service_failure_without_identity(client, monkeypatch, caplog):
+    caplog.set_level("INFO", logger=AUDIT_LOGGER)
+    monkeypatch.setenv("AEGISRISK_ACCESS_MODE", "unavailable")
+    assert client.get("/api/v1/report").status_code == 503
+    event, = audit_events(caplog)
+    assert (event["status"], event["outcome"], event["actor"]) == (503, "failed", None)
