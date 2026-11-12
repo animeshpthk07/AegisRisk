@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+from base64 import b64decode
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
@@ -12,6 +13,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from openpyxl import Workbook
+from PIL import Image
 from playwright.sync_api import expect, sync_playwright
 
 BROWSER_ENGINE = os.environ.get("AEGISRISK_BROWSER", "chromium")
@@ -1904,9 +1906,27 @@ def test_native_page_zoom_allows_search_and_review(browser, tmp_path):
             search.fill("SYN-001")
             status = page.locator("#exposures").get_by_role("status")
             expect(status).to_contain_text("Showing 1 of 40 facilities")
+            search.evaluate(
+                "node => node.scrollIntoView({block: 'center', behavior: 'instant'})"
+            )
+            expect(search).to_be_in_viewport(ratio=1)
+            page.evaluate("""() => new Promise(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)))""")
+            # Capture the complete visible surface, without a CSS-pixel clip.
+            session = context.new_cdp_session(page)
+            try:
+                png = b64decode(session.send("Page.captureScreenshot", {
+                    "format": "png", "fromSurface": True,
+                    "captureBeyondViewport": False,
+                })["data"])
+            finally:
+                session.detach()
+            with Image.open(BytesIO(png)) as image:
+                assert image.width >= width - 2, "Capture lost part of the window"
+                low, high = image.convert("L").getextrema()
+                assert high - low >= 64, "Blank or low-contrast zoom evidence"
+            (ARTIFACTS / f"native-zoom-{zoom}00.png").write_bytes(png)
             search.fill("")
             expect(status).to_contain_text("Showing 40 of 40 facilities")
             assert page.evaluate("""() => document.documentElement.scrollWidth
                 <= document.documentElement.clientWidth + 1""")
-            page.locator("#overview").scroll_into_view_if_needed()
-            page.screenshot(path=str(ARTIFACTS / f"native-zoom-{zoom}00.png"))
