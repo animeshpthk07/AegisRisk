@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-11-11. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-11-12. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -249,19 +249,19 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | M0 Foundation | Foundation checkpoint verified | Public source, setup docs, frontend/backend builds and GitHub CI; full product scope remains below |
-| M1 Data layer | Partial | SQLAlchemy facilities, Alembic migration and 40 synthetic records; validated CSV preview and reviewed immutable CSV persistence implemented; values-only XLSX verified |
-| M2 Risk mathematics | Partial | Decimal EL, weighted metrics and HHI implemented and tested; full scope pending |
-| M3 ML | Synthetic research slice verified (run #27) | Isolated logistic regression, held-out calibration/test data, baseline metrics and raw-score contributions; no real-world validation |
-| M4 Stress | Partial | Bounded PD/LGD/EAD sensitivity, industry scope and guarded scenario-comparison export verified; broader scenarios pending |
-| M5 API | Partial | Versioned portfolio, preview, reviewed snapshots, baseline/scenario reports and isolated model-card/prediction endpoints; full scope pending |
-| M6 Full frontend | Partial | Dashboard, scenario controls, CSV / XLSX review/save/select and baseline/scenario JSON, printable HTML and PDF downloads; full workbench pending |
-| M7 Explanations | Not complete | Deterministic only; external AI deferred |
-| M8 Reports | Educational evidence-export slice verified (run #34) | Baseline/scenario JSON, printable HTML and server-generated PDF; exact evidence, identity/digest/stale-result guards and 13-page visual fixture review; accessible tagged/multilingual/signed reports remain outside this implementation |
-| M9 Security | In progress; workspace access, nonce policy and inactivity cleanup verified (run #160) | Token identity, roles, workspace isolation, browser script/resource policy and inactivity cleanup pass; style-attribute exception, production identity/session controls, storage operations and independent review remain open |
+| M1 Data layer | Verified for synthetic portfolios | The 40-facility seed, validated CSV and values-only XLSX imports, snapshot versioning, workspace-scoped storage and PostgreSQL restore have recorded checks. |
+| M2 Risk mathematics | Verified for the one-year INR portfolio | Decimal facility and portfolio expected loss, exposure-weighted metrics, concentration and contributor totals are exercised by financial and report tests. |
+| M3 ML | Evaluated on synthetic data | Reproducible logistic regression, held-out calibration, confusion matrices, threshold sensitivity and separate model evidence in risk reports. Real borrower outcomes have not been evaluated. |
+| M4 Stress | Verified for the documented scenarios | Baseline, recession, sector and custom assumptions support capped PD/LGD adjustments, EAD changes, industry reconciliation and facility attribution. See [portfolio analytics](PORTFOLIO_ANALYTICS.md) and the [sample report](SAMPLE_RISK_REPORT.md). |
+| M5 API | Verified for the educational workbench | Versioned health, readiness, import, snapshot, analysis, facility review, model and reporting endpoints. Access and dataset validation are covered by API and browser tests. |
+| M6 Full frontend | Educational workbench verified | The dashboard, portfolio and borrower views, scenario testing, Model Lab, data review and report downloads are exercised in application verification. Manual accessibility coverage is tracked under M10. |
+| M7 Explanations | Deterministic commentary available | Explanations use calculated evidence. The optional external AI integration is deferred. |
+| M8 Reports | Published and verified | Baseline and scenario JSON, HTML and PDF include concentrations, synthetic model evaluation and assumptions. All 17 rendered fixture pages were visually reviewed on 11 November. |
+| M9 Security | Verified controls with operational limits | Workspace authorization, browser policy, inactivity locking and [material-action audit events](SECURITY.md) are implemented. See [release readiness](RELEASE_READINESS.md) for the limits of shared hosting. |
 | M10 Full verification | Partial | Backend/frontend and real workflows pass in Chromium, Firefox and WebKit; Compose browser/restart lifecycle passes; screen-reader, zoom, physical-device and broader security verification remain pending |
-| M11 Deployment | Image package verified; hosting deferred by owner | Public demo image run #3 passes; Render Free proposal and cost/rollback guide saved; no actual hosted URL verified |
-| M12 Release | Educational preview published; full product incomplete | v0.1.0-preview.1 pins the source verified by application #70 and demo #5; hosting deferred and broader acceptance gaps remain |
-| Career presentation and learning | Partial | Walkthrough, technical discussion guide, CV bullets and LinkedIn drafts saved in PROJECT_PRESENTATION.md; owner review and LinkedIn publication remain pending |
+| M11 Deployment | Demo container verified, public hosting deferred | The GitHub release includes the source and startup instructions. The owner has deferred public hosting. |
+| M12 Release | Educational portfolio preview published | [v0.2.0-preview.1](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.1) pins the code verified by application #230 and demo #118. Later audit changes are available on main. |
+| Career presentation and learning | Launch published, interview practice open | The [case study](CASE_STUDY.md), [walkthrough](PROJECT_PRESENTATION.md) and [learning exercises](LEARNING_AND_INTERVIEW.md) are available. The [LinkedIn post](https://www.linkedin.com/feed/update/urn:li:activity:7526560121762799616/) was published on 12 November. |
 
 ## Visible workflow requested by user
 
