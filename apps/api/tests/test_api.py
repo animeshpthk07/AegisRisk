@@ -868,32 +868,38 @@ def test_pdf_escaping_empty_and_maximum_rows(tmp_path):
 
 def test_pdf_visual_evidence(tmp_path):
     import os
+    from dataclasses import replace
     from pathlib import Path
-    from types import SimpleNamespace
 
     from pypdf import PdfReader
 
+    from aegisrisk.imports import parse_csv
     from aegisrisk.pdf_report import render_pdf
 
     target = Path(os.environ.get("AEGISRISK_PDF_EVIDENCE_DIR", str(tmp_path)))
     target.mkdir(parents=True, exist_ok=True)
-    rows = [SimpleNamespace(
-        id=f"PDF-{i:03d}", borrower=f"Fictional Review Company {i:03d}",
-        industry="Energy" if i % 2 else "Technology", geography="West", rating="B",
-        pd=Decimal("0.025"), lgd=Decimal("0.45"), ead=Decimal(2500000),
-    ) for i in range(40)]
+    fixture = Path(__file__).resolve().parents[3] / "docs" / "energy-sector-example.csv"
+    preview, rows = parse_csv(fixture.read_bytes())
+    assert preview["valid"] and preview["row_count"] == 40
+    assert preview["summary"]["total_ead"] == 100_000_000
     baseline = api_module.baseline_report_payload(rows, None)
     config = api_module.StressInput(pd_multiplier=2, lgd_multiplier=1.2, industry="Energy")
     scenario = {"report_kind": "baseline_and_scenario", "synthetic": True,
                 "generated_at": baseline["generated_at"], "baseline": baseline,
                 "scenario": api_module.stress_payload(rows, config, include_evidence=True)}
+    stress = scenario["scenario"]
+    assert stress["baseline_el"] == 1_125_000
+    assert stress["stressed_el"] == 1_912_500
+    assert stress["delta_el"] == 787_500
+    assert stress["delta_pct"] == pytest.approx(0.70)
+    assert stress["calculation"]["affected_facility_count"] == 20
     for name, report in (("baseline", baseline), ("scenario", scenario)):
         content = render_pdf(report)
         (target / f"{name}.pdf").write_bytes(content)
         reader = PdfReader(io.BytesIO(content))
         assert all(page.extract_text().strip() for page in reader.pages)
-    rows[0].borrower = '<img src="https://example.invalid/x"/> & Fictional \u03a9'
-    hostile = render_pdf(api_module.baseline_report_payload(rows[:1], None))
+    literal_row = replace(rows[0], borrower='<img src="https://example.invalid/x"/> & Fictional \u03a9')
+    hostile = render_pdf(api_module.baseline_report_payload([literal_row], None))
     text = "".join(page.extract_text() for page in PdfReader(io.BytesIO(hostile)).pages)
     assert '<img src="https://example.invalid/x"/>' in text
     assert r"\u03a9" in text
