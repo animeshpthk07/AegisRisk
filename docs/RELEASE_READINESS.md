@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated 2026-11-11. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-11-12. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
@@ -93,7 +93,7 @@ The initial comparison used NextURL, whose loopback normalization rejected valid
 | Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Token/workspace slice verified in run #112, nonce/resource policy in run #132 and inactivity cleanup in run #160; style-attribute exception, production identity, quotas, storage lifecycle and independent security review remain open |
 | Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
 | Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
-| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | [Portfolio preview](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.1), [case study](CASE_STUDY.md), [sample report](SAMPLE_RISK_REPORT.md) and walkthrough published. Career presentation drafts are in PROJECT_PRESENTATION.md. External posting and applications require separate approval. |
+| Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | [Portfolio preview](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.1), [case study](CASE_STUDY.md), [sample report](SAMPLE_RISK_REPORT.md) and walkthrough published. The [LinkedIn project announcement](https://www.linkedin.com/feed/update/urn:li:activity:7526560121762799616/) was published on 12 November with the fictional 40-facility stress example. |
 
 Run #50 recorded 141 backend tests (one dependency deprecation warning), 19 frontend tests and 90 Chromium cases in each of two environments. Native browser tests passed in 104.15s and Compose/PostgreSQL browser tests in 105.66s. The two browser runs exercise the same cases and must not be counted as 180 distinct cases. Both dependency audits reported no known vulnerabilities at this checkpoint; these are dated checks. CI artifacts expire after seven days; preserve only synthetic release evidence needed for reproducibility.
 
