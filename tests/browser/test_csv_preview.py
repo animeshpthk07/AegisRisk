@@ -1895,7 +1895,7 @@ def test_native_page_zoom_allows_search_and_review(browser, tmp_path):
                 await chrome.tabs.setZoom(tab.id, factor);
                 return chrome.tabs.getZoom(tab.id);
             }""", zoom)
-            assert actual == zoom
+            assert actual == pytest.approx(zoom, rel=1e-12)
             wait_for_browser_condition(
                 page, f"Math.abs(devicePixelRatio - {dpr * zoom}) < 0.02"
             )
