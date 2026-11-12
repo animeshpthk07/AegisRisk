@@ -1,10 +1,17 @@
 # AegisRisk project presentation
 
-Prepared 2 November 2026. Career copy below is a draft for the owner's review. It has not been posted to LinkedIn. Use the repository and exact verification links; do not imply a hosted app or a completed production system.
+Updated 12 November 2026. The [public launch post](https://www.linkedin.com/feed/update/urn:li:activity:7526560121762799616/) discusses the Energy stress example. The earlier copy below is retained as a draft. Use the [verified release](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.1) for the published portfolio preview.
 
 ## Thirty-second introduction
 
 I built AegisRisk to make credit-risk calculations easier to inspect. It takes fictional CSV or Excel facility data through validation, expected-loss calculations, sensitivity scenarios and downloadable evidence. I used Python/FastAPI, Next.js/TypeScript and PostgreSQL, with automated browser and container checks. A separate synthetic Model Lab demonstrates a training and evaluation pipeline. My focus is the connection between financial assumptions, reliable software and an explanation a reviewer can check.
+
+## Two-minute project pitch
+
+- **Opening, 20 seconds.** A credit reviewer sees a 70% increase in expected loss. Show what they need to check before using that figure: the portfolio, the assumptions and the facilities that explain the movement.
+- **Work one facility, 40 seconds.** Open the [sample report](SAMPLE_RISK_REPORT.md). Each loan has ₹25 lakh of exposure. At 2.5% PD and 45% LGD, expected loss is ₹28,125. In the Energy scenario, PD rises to 5% and LGD to 54%. The new expected loss is ₹67,500.
+- **Reconcile the portfolio, 35 seconds.** The difference is ₹39,375 per affected facility. All 20 Energy facilities have that increase, giving ₹7,87,500 in total. The other 20 keep their original assumptions. State the one-year horizon and the fictional data source.
+- **Close, 25 seconds.** Show the [CSV](energy-sector-example.csv) and the downloadable report. Explain why an analyst might challenge the PD or recovery assumption. Invite the reviewer to suggest a different stress and name the evidence needed to justify it.
 
 ## Five-minute demonstration
 
@@ -18,6 +25,16 @@ I built AegisRisk to make credit-risk calculations easier to inspect. It takes f
 | 4:00–5:00 | Actions results, architecture and limitations | Show what passed, what is still open, and how another developer can reproduce it |
 
 Use [DEMO_GUIDE.md](DEMO_GUIDE.md) for exact steps and [DEVELOPMENT.md](DEVELOPMENT.md) for setup. The one-row scenario requires that fixture to be explicitly selected; never attribute those totals to the 40-record seed. Optional workspace controls require a separate disposable token-mode configuration. Do not show credentials or real customer data.
+
+## Ten-minute technical walkthrough
+
+| Time | Reviewer action | Evidence to point to |
+| --- | --- | --- |
+| 0–2 min | Preview the [sample CSV](energy-sector-example.csv) | Check row count, currency, horizon and total exposure against the report. The normal dashboard seed contains different facilities. |
+| 2–4 min | Use the [sample report](SAMPLE_RISK_REPORT.md) to trace one Energy loan | Recalculate ₹28,125 and ₹67,500. Sum the change over the 20 affected facilities and explain the zero change in Technology. |
+| 4–6 min | Show portfolio concentration and borrower details | Equal exposure in two sectors gives industry HHI of 0.50. Forty equal borrowers give borrower HHI of 0.025. An imported borrower without linked ratios has no model PD estimate. |
+| 6–8 min | Compare the Model Lab reference and logistic estimates | The separate synthetic test set has 600 profiles and 173 events. Explain why calibration can change the Brier score while leaving the ROC-AUC unchanged. |
+| 8–10 min | Follow an export through the web interface, API and report generator | Show the [architecture](ARCHITECTURE.md), the release verification links and one assumption a human would challenge before applying this scenario to real exposures. |
 
 ## Evidence a reviewer can inspect
 

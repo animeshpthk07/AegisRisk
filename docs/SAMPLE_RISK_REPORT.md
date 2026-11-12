@@ -32,7 +32,13 @@ In this run the sigmoid calibration preserved ranking and slightly lowered the s
 
 ## Reproduce the sample
 
-From an initialized development environment, run the PDF evidence test.
+Download [the 40-row fictional CSV](energy-sector-example.csv) using GitHub’s **Download raw file** button. The app’s built-in seed is a different portfolio.
+
+1. In the workbench, open the CSV / Excel preview, choose the file, acknowledge the fictional data and validate it. Check for 40 valid rows, ₹100,000,000 exposure and ₹1,125,000 expected loss.
+2. On a local instance with reviewed saving enabled, save and select this portfolio. Choose a custom scenario for Energy. Set the PD multiplier to 2, LGD to 1.2 and EAD to 1.
+3. Run the scenario. Check that the 20 Energy facilities account for the entire ₹787,500 increase and the Technology total is unchanged. Export the scenario report to inspect the facility evidence.
+
+The PDF verification fixture reads the same CSV. To generate the files from an initialized development environment, run the test below.
 
 ```sh
 AEGISRISK_PDF_EVIDENCE_DIR=test-results/pdf pytest apps/api/tests/test_api.py -k test_pdf_visual_evidence
