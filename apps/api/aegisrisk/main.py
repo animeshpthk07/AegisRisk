@@ -34,8 +34,43 @@ app.include_router(facility_review_router)
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
+# Only these backend operations emit an audit event. Never log the raw URL or body.
+MATERIAL_ACTIONS = {
+    ("POST", "/api/v1/saved-portfolios"): "snapshot.save",
+    ("GET", "/api/v1/report"): "report.baseline.json",
+    ("GET", "/api/v1/report-pdf"): "report.baseline.pdf",
+    ("POST", "/api/v1/scenario-report"): "report.scenario.json",
+    ("POST", "/api/v1/scenario-report-pdf"): "report.scenario.pdf",
+}
+audit_logger = logging.getLogger("uvicorn.error.aegisrisk.audit")
+
+
+def audit_result(action, status):
+    if status >= 500:
+        return "failed"
+    if status in (401, 403):
+        return "denied"
+    if status >= 400:
+        return "rejected"
+    if action == "snapshot.save" and status in (200, 201):
+        return "created" if status == 201 else "reused"
+    return "generated" if status == 200 else "other"
+
+
+def record_action(action, status):
+    principal = current_principal.get()
+    audit_logger.info(json.dumps({
+        "schema": "aegisrisk.audit.v1", "at": datetime.now(UTC).isoformat(),
+        "action": action, "outcome": audit_result(action, status), "status": status,
+        "actor": principal.subject if principal else None,
+        "workspace": principal.workspace if principal else None,
+        "role": principal.role if principal else None,
+    }, separators=(",", ":")))
+
+
 @app.middleware("http")
 async def safe_headers(request: Request, call_next):
+    action = MATERIAL_ACTIONS.get((request.method, request.url.path))
     token = current_principal.set(None)
     try:
         try:
@@ -48,6 +83,12 @@ async def safe_headers(request: Request, call_next):
         except HTTPException as exc:
             response = JSONResponse(status_code=exc.status_code,
                                     content={"detail": exc.detail}, headers=exc.headers)
+        if action:
+            record_action(action, response.status_code)
+    except Exception:
+        if action:
+            record_action(action, 500)
+        raise
     finally:
         current_principal.reset(token)
     response.headers["X-Content-Type-Options"] = "nosniff"
