@@ -14,7 +14,9 @@ AegisRisk is an educational banking risk workbench. Start with a fictional INR c
 
 The application uses Next.js, React and TypeScript for the interface, FastAPI and Python for analysis, and PostgreSQL with SQLAlchemy and Alembic for persistence. Optional workspace access separates saved datasets. Docker Compose runs the stack locally. GitHub Actions exercises the API, the three browser engines, the database lifecycle and the demo container. [Architecture](docs/ARCHITECTURE.md) · [Development guide](docs/DEVELOPMENT.md) · [Security overview](docs/SECURITY.md)
 
-## Published portfolio preview · 12 November 2026
+## Portfolio releases
+
+Start from the newest entry in [GitHub Releases](https://github.com/animeshpthk07/AegisRisk/releases) for the downloadable source and its verification record. The November 12 example below is pinned so that the figures can be reproduced.
 
 [v0.2.0-preview.2](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) packages the verified workbench at [948b55e](https://github.com/animeshpthk07/AegisRisk/commit/948b55ecda61947dd5397c739e77844793f64daa). All six [application jobs](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829172) and the [demo image check](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829156) passed for that source. Hosting remains deferred.
 
