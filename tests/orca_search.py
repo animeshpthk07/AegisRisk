@@ -49,15 +49,19 @@ def check():
         status = explorer.get_by_role('status').filter(has_text='Showing')
         expect(status).to_contain_text('Showing 40 of 40')
         page.bring_to_front()
-        link = page.get_by_role('link', name='Credit explorer', exact=False)
-        link.focus()
+        page.get_by_role('link', name='Skip to dashboard').focus()
         start = cursor()
-        keys('Return', 'Tab')
+        for _ in range(40):
+            keys('Tab')
+            if search.evaluate('(element) => element === document.activeElement'):
+                break
         expect(search).to_be_focused()
         heard(start, 'Search facilities')
+        heard(start, 'Focus mode')
 
         start = cursor()
         subprocess.run(['xdotool', 'type', '--clearmodifiers', '--delay', '75', 'SYN-001'], check=True)
+        expect(search).to_have_value('SYN-001')
         expect(status).to_contain_text('Showing 1 of 40 facilities')
         heard(start, 'Showing 1 of 40 facilities')
 
