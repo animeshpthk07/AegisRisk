@@ -41,11 +41,15 @@ jobs:
           openbox > /tmp/openbox.log 2>&1 &
           pulseaudio --start --exit-idle-time=-1
           orca --version
-          orca --enable=speech --disable=braille --debug-file="$ORCA_LOG" > /tmp/orca-start.log 2>&1 &
+          # Orca opens its own debug stream. A terminal makes each utterance
+          # available immediately, including the last one before the next key.
+          script --quiet --flush --return \
+            --command 'exec orca --enable=speech --disable=braille --debug-file=/dev/stdout' \
+            /dev/null > "$ORCA_LOG" 2>&1 &
           reader=$!
           trap 'kill "$reader" 2>/dev/null || true' EXIT
           for i in {1..30}; do
-            kill -0 "$reader" || { cat /tmp/orca-start.log; exit 1; }
+            kill -0 "$reader" || { tail -20 "$ORCA_LOG"; exit 1; }
             if [ -s "$ORCA_LOG" ]; then break; fi
             sleep 1
           done
