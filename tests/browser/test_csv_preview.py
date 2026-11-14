@@ -1943,3 +1943,34 @@ def test_native_page_zoom_allows_search_and_review(browser, tmp_path):
             expect(status).to_contain_text("Showing 40 of 40 facilities")
             assert page.evaluate("""() => document.documentElement.scrollWidth
                 <= document.documentElement.clientWidth + 1""")
+
+
+def test_touch_search_open_and_clear_facility(browser):
+    with browser.new_context(
+        viewport={"width": 390, "height": 844},
+        has_touch=True, device_scale_factor=2,
+    ) as context:
+        page = context.new_page()
+        page.goto(f"{BASE_URL}/#exposures")
+        search = page.get_by_role("textbox", name="Search facilities")
+        explorer = page.locator("#exposures")
+        count = explorer.get_by_role("status").filter(has_text="Showing")
+        expect(count).to_contain_text("Showing 40 of 40 facilities")
+        assert page.evaluate("navigator.maxTouchPoints > 0")
+        search.tap()
+        expect(search).to_be_focused()
+        page.keyboard.insert_text("SYN-001")
+        expect(count).to_contain_text("Showing 1 of 40 facilities")
+        picker = explorer.get_by_label("Inspect a facility", exact=True)
+        picker.select_option("SYN-001")
+        detail = explorer.get_by_role("heading", name="Fictional Borrower 001 · SYN-001")
+        expect(detail).to_be_visible()
+        for control in (search, picker):
+            bounds = control.bounding_box()
+            assert bounds and bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= 391
+        assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+        search.tap()
+        search.fill("")
+        expect(count).to_contain_text("Showing 40 of 40 facilities")
+        expect(detail).to_have_count(0)
+        expect(search).to_be_focused()
