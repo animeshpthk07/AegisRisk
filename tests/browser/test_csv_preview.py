@@ -1956,8 +1956,15 @@ def test_touch_search_open_and_clear_facility(browser):
         explorer = page.locator("#exposures")
         count = explorer.get_by_role("status").filter(has_text="Showing")
         expect(count).to_contain_text("Showing 40 of 40 facilities")
-        assert page.evaluate("navigator.maxTouchPoints > 0")
+        # Desktop engines can dispatch touch while reporting zero hardware points.
+        # Observe the touch event delivered to the search field itself.
+        search.evaluate("""field => field.addEventListener('touchstart', event => {
+            if (event.isTrusted && event.touches.length > 0) {
+                field.dataset.observedTouch = 'yes';
+            }
+        }, {once: true})""")
         search.tap()
+        expect(search).to_have_attribute("data-observed-touch", "yes")
         expect(search).to_be_focused()
         page.keyboard.insert_text("SYN-001")
         expect(count).to_contain_text("Showing 1 of 40 facilities")
