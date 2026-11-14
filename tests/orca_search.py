@@ -66,20 +66,27 @@ def check():
         heard(start, 'Showing 1 of 40 facilities')
 
         choice = explorer.get_by_role('combobox', name='Inspect a facility')
+        choice_start = cursor()
         for _ in range(8):
             if choice.evaluate('(element) => element === document.activeElement'):
                 break
             keys('Tab')
         expect(choice).to_be_focused()
+        heard(choice_start, 'Inspect a facility')
         keys('Down', 'Return')
         expect(explorer.get_by_role('heading', name='SYN-001', exact=False)).to_be_visible()
+        return_start = cursor()
         for _ in range(8):
             if search.evaluate('(element) => element === document.activeElement'):
                 break
             keys('shift+Tab')
         expect(search).to_be_focused()
+        # Orca processes desktop focus asynchronously. Wait for its own new
+        # announcement before sending the next user action.
+        heard(return_start, 'Search facilities')
         start = cursor()
         keys('ctrl+a', 'BackSpace')
+        expect(search).to_have_value('')
         expect(status).to_contain_text('Showing 40 of 40 facilities')
         heard(start, 'Showing 40 of 40 facilities')
         expect(search).to_be_focused()
