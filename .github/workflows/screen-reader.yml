@@ -1,0 +1,53 @@
+name: Credit explorer screen reader
+on:
+  push:
+    paths: ['apps/web/**', 'tests/orca_search.py', '.github/workflows/screen-reader.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  orca:
+    name: Orca speech on the fictional portfolio
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install a desktop screen reader and Chromium
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y orca at-spi2-core dbus-x11 openbox xdotool xvfb pulseaudio speech-dispatcher-espeak-ng
+          pip install playwright==1.64.0
+          python -m playwright install --with-deps chromium
+      - name: Start the same synthetic demo used in release verification
+        run: |
+          docker build -f deploy/demo/Dockerfile -t aegisrisk-orca .
+          docker run -d --name demo --cap-drop=ALL --security-opt=no-new-privileges -p 127.0.0.1:3000:10000 aegisrisk-orca
+          curl --fail --silent --retry 50 --retry-delay 2 --retry-all-errors http://127.0.0.1:3000/ >/dev/null
+      - name: Exercise search with Orca and desktop keyboard events
+        env:
+          GTK_MODULES: gail:atk-bridge
+          ACCESSIBILITY_ENABLED: '1'
+          NO_AT_BRIDGE: '0'
+          LANG: en_US.UTF-8
+        run: |
+          export ORCA_LOG="$RUNNER_TEMP/orca.log"
+          xvfb-run -a dbus-run-session -- bash -euo pipefail <<'SESSION'
+          gsettings set org.gnome.desktop.interface toolkit-accessibility true
+          openbox > /tmp/openbox.log 2>&1 &
+          pulseaudio --start --exit-idle-time=-1
+          orca --version
+          orca --enable=speech --disable=braille --debug-file="$ORCA_LOG" > /tmp/orca-start.log 2>&1 &
+          reader=$!
+          trap 'kill "$reader" 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            kill -0 "$reader" || { cat /tmp/orca-start.log; exit 1; }
+            if [ -s "$ORCA_LOG" ]; then break; fi
+            sleep 1
+          done
+          python tests/orca_search.py
+          SESSION
