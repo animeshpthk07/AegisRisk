@@ -1963,7 +1963,9 @@ def test_touch_search_open_and_clear_facility(browser):
         expect(count).to_contain_text("Showing 1 of 40 facilities")
         picker = explorer.get_by_label("Inspect a facility", exact=True)
         picker.select_option("SYN-001")
-        detail = explorer.get_by_role("heading", name="Fictional Borrower 001 · SYN-001")
+        detail = explorer.get_by_role(
+            "heading", name="Fictional Borrower 001 · SYN-001"
+        )
         expect(detail).to_be_visible()
         for control in (search, picker):
             bounds = control.bounding_box()
