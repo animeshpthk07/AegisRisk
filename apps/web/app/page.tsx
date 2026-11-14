@@ -44,6 +44,21 @@ async function read(path: string, signal?: AbortSignal) {
   if (!response.ok) throw new Error('The data service is unavailable. Check the API, migration and demo seed.');
   return response.json();
 }
+function FacilityCount({ matches, total }: { matches: number; total: number }) {
+  const message = 'Showing ' + matches + ' of ' + total + ' facilities.';
+  const [announcement, setAnnouncement] = useState('');
+  useEffect(() => {
+    // Allow keyboard focus and the filtered table to settle before speaking.
+    const timer = window.setTimeout(() => setAnnouncement(message), 500);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+  return <p className="muted">
+    <span aria-hidden="true">{message} </span>
+    <span className="sr-only" role="status" aria-live="polite" aria-atomic="true">{announcement}</span>
+    Portfolio totals use all facilities in this dataset.
+  </p>;
+}
+
 export default function Dashboard() {
   const access = useAccess();
   const [data, setData] = useState<Portfolio | null>(null);
@@ -275,7 +290,7 @@ export default function Dashboard() {
               <option value="">All ratings</option>
               {[...new Set(data.facilities.map(r => r.rating))].sort().map(r => <option key={r}>{r}</option>)}
             </select></div>
-        </div><div className="table-scroll" tabIndex={0} role="region" aria-label="Facility metrics table"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><p className="muted" role="status">Showing {rows.length} of {data.facilities.length} facilities. Portfolio totals use all facilities in this dataset.</p>
+        </div><div className="table-scroll" tabIndex={0} role="region" aria-label="Facility metrics table"><table><caption className="sr-only">Fictional facility metrics, INR and one-year PD</caption><thead><tr><th>Borrower / ID</th><th>Industry</th><th>Rating</th><th>PD</th><th>LGD</th><th>EAD</th><th>Expected loss</th></tr></thead><tbody>{rows.map(r => <tr key={r.id}><td>{r.borrower}<small>{r.id} · {r.geography}</small></td><td>{r.industry}</td><td><span className="rating">{r.rating}</span></td><td>{percent(r.pd)}</td><td>{percent(r.lgd)}</td><td>{money(r.ead)}</td><td>{money(r.expected_loss)}</td></tr>)}</tbody></table>{!rows.length && <p>No facilities match your search.</p>}</div><FacilityCount matches={rows.length} total={data.facilities.length}/>
         <FacilityReview key={JSON.stringify([data.dataset_version, query, geography, rating])}
           rows={rows} datasetId={datasetId} version={data.dataset_version}/>
       </section>

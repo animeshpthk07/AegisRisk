@@ -1,6 +1,6 @@
 # Execution tracker
 
-Started 2026-10-13. Updated 2026-11-12. Public GitHub publication approved by the owner. No external AI enabled.
+Started 2026-10-13. Updated 2026-11-14. Public GitHub publication approved by the owner. No external AI enabled.
 
 ## Current activity — live development
 
@@ -258,9 +258,9 @@ This is a growing verified slice, not the completed AegisRisk product. Reviewed 
 | M7 Explanations | Deterministic commentary available | Explanations use calculated evidence. The optional external AI integration is deferred. |
 | M8 Reports | Published and verified | Baseline and scenario JSON, HTML and PDF include concentrations, synthetic model evaluation and assumptions. All 17 rendered fixture pages were visually reviewed on 11 November. |
 | M9 Security | Verified controls with operational limits | Workspace authorization, browser policy, inactivity locking and [material-action audit events](SECURITY.md) are implemented. See [release readiness](RELEASE_READINESS.md) for the limits of shared hosting. |
-| M10 Full verification | Automated checks pass; two manual checks open | [Run #256](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829172) covers the backend, frontend, three browser engines and PostgreSQL. Native Chromium search, filter text and reflow passed at 200% and 400%. A real screen reader and physical device remain to be checked. |
+| M10 Full verification | Automated checks pass; two manual checks open | [Run #256](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829172) covers the backend, frontend, three browser engines and PostgreSQL. Native Chromium search, filter text and reflow passed at 200% and 400%. [Orca with Chromium](https://github.com/animeshpthk07/AegisRisk/actions/runs/43595902477/job/132450208704) announced one matching facility after search and all 40 after clearing, with focus in the search field. Hands-on listening and a physical-phone check remain open. |
 | M11 Deployment | Demo container verified, public hosting deferred | The GitHub release includes the source and startup instructions. The owner has deferred public hosting. |
-| M12 Release | Educational portfolio preview published | [v0.2.0-preview.2](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) pins the source verified by application #256 and demo #134. [Download the CSV and reproduce the report](SAMPLE_RISK_REPORT.md). |
+| M12 Release | Educational portfolio preview published | The [GitHub releases](https://github.com/animeshpthk07/AegisRisk/releases) identify each preview’s exact source and verification. The 12 November portfolio fixture is reproducible in v0.2.0-preview.2. [Download the CSV and reproduce the report](SAMPLE_RISK_REPORT.md). |
 | Career presentation and learning | Launch published, interview practice open | The [case study](CASE_STUDY.md), [walkthrough](PROJECT_PRESENTATION.md) and [learning exercises](LEARNING_AND_INTERVIEW.md) are available. The [LinkedIn post](https://www.linkedin.com/feed/update/urn:li:activity:7526560121762799616/) was published on 12 November. |
 
 ## Visible workflow requested by user
