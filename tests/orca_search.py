@@ -35,6 +35,9 @@ def heard(offset, phrase):
 
 def keys(*names):
     subprocess.run(['xdotool', 'key', '--clearmodifiers', *names], check=True)
+    if names in {('Tab',), ('shift+Tab',)}:
+        # Give the AT-SPI focus event a turn before moving to another control.
+        time.sleep(0.45)
 
 
 def check():
@@ -73,7 +76,10 @@ def check():
             keys('Tab')
         expect(choice).to_be_focused()
         heard(choice_start, 'Inspect a facility')
-        keys('Down', 'Return')
+        # Down selects the only matching facility in the closed native select.
+        # Return would reopen its popup before the following Shift+Tab.
+        keys('Down')
+        expect(choice).to_have_value('SYN-001')
         expect(explorer.get_by_role('heading', name='SYN-001', exact=False)).to_be_visible()
         return_start = cursor()
         for _ in range(8):
