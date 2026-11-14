@@ -4,7 +4,7 @@ Updated 2026-11-14. This document defines the evidence needed for a release; it 
 
 ## Current deliverable
 
-AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. The current [portfolio preview](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) is tagged at [948b55e](https://github.com/animeshpthk07/AegisRisk/commit/948b55ecda61947dd5397c739e77844793f64daa). Earlier previews remain available in the release history.
+AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. See [GitHub Releases](https://github.com/animeshpthk07/AegisRisk/releases) for the newest verified source. The 12 November [portfolio preview](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) is tagged at [948b55e](https://github.com/animeshpthk07/AegisRisk/commit/948b55ecda61947dd5397c739e77844793f64daa). Earlier previews remain available in the release history.
 
 On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
 
@@ -17,6 +17,8 @@ Download the [40-facility fictional portfolio](energy-sector-example.csv) and fo
 ## Credit explorer accessibility — 14 November 2026
 
 The [screen-reader verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/43595902477/job/132450208704) ran Orca 46.1 with Chromium 156.0.8078.4. Orca announced “Search facilities”, “Showing 1 of 40 facilities” after filtering to SYN-001, and “Showing 40 of 40 facilities” after clearing. The test opened the facility using the keyboard and confirmed that focus ended in the search field. The previous run caught a missed announcement after clearing even though the table had updated. The visible count now updates immediately and a separate live region announces the settled count. The evidence is the screen reader’s speech transcript.
+
+The [touch-screen regression](../tests/browser/test_csv_preview.py) uses a 390 × 844 viewport, checks the search and facility controls for horizontal clipping, opens SYN-001, clears the search and checks the restored 40 rows and focus. It runs in the three-engine browser suite.
 
 Hands-on review remains open. On a physical phone, search the built-in portfolio for SYN-001, open the facility, then clear the search. Record the phone, browser, restored count and any clipped controls. For a listening review, record the screen reader and browser, the two counts heard and where keyboard focus ends.
 
