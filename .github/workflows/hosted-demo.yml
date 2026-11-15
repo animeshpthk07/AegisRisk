@@ -1,0 +1,100 @@
+name: Hosted fictional demo check
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/hosted-demo.yml']
+permissions:
+  contents: read
+jobs:
+  visitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - run: pip install -e './apps/api[dev]' playwright==1.64.0
+      - run: python -m playwright install --with-deps chromium
+      - name: Visit the deployed demo with fictional fixtures and no credentials
+        env:
+          PYTHONPATH: tests/browser
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import httpx
+          from playwright.sync_api import expect, sync_playwright
+          from pypdf import PdfReader
+          import test_csv_preview as fixture
+
+          site = 'https://aegisrisk-demo.onrender.com'
+          fixture.BASE_URL = site
+          evidence = Path('hosted-evidence')
+          evidence.mkdir()
+          with httpx.Client(base_url=site, timeout=110) as client:
+              ready = client.get('/healthz')
+              ready.raise_for_status()
+              original = client.get('/api/portfolio').raise_for_status().json()['summary']
+              assert original['facility_count'] == 40
+              assert original['total_expected_loss'] == 2769125
+              assert client.get('/api/saved-portfolios').raise_for_status().json()['enabled'] is False
+
+          with sync_playwright() as runtime:
+              browser = runtime.chromium.launch()
+              page = browser.new_page(viewport={'width': 1440, 'height': 900})
+              page.set_default_timeout(30000)
+              page.goto(site, timeout=110000)
+              expect(page.get_by_role('region', name='Portfolio metrics')).to_contain_text('40 fictional facilities', timeout=60000)
+              page.emulate_media(reduced_motion='reduce')
+              theme = page.get_by_role('button', name='Toggle light and dark theme')
+              for width in (1440, 390):
+                  page.set_viewport_size({'width': width, 'height': 900})
+                  for mode in ('dark', 'light'):
+                      page.locator('#overview').scroll_into_view_if_needed()
+                      assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1')
+                      page.screenshot(path=evidence / f'overview-{width}-{mode}.png')
+                      theme.click()
+              page.set_viewport_size({'width': 1440, 'height': 900})
+              fixture.test_invalid_probability_has_issues_and_no_partial_totals(page)
+              fixture.test_uploaded_utf8_csv_and_example_download(page)
+              fixture.choose_file(page, 'fictional.xlsx', fixture.fictional_xlsx())
+              page.get_by_role('checkbox', name=fixture.CONSENT).check()
+              reviewed = fixture.submit(page)
+              assert reviewed.status == 200
+              assert reviewed.json()['summary']['total_expected_loss'] == 50
+              assert reviewed.json()['persisted'] is False
+              expect(page.locator('#import-preview')).to_contain_text('Saving is disabled')
+              page.get_by_label('Scenario preset', exact=True).select_option('sector')
+              page.get_by_label('Scenario scope', exact=True).select_option('Energy')
+              scenario = fixture.calculate_scenario(page)
+              assert scenario['baseline_el'] == original['total_expected_loss']
+              assert scenario['stressed_el'] > scenario['baseline_el']
+              download, report = fixture.download_scenario_report(page)
+              download.save_as(evidence / 'scenario.json')
+              assert report['scenario']['industry_impacts'] == scenario['industry_impacts']
+              for label, suffix in [('printable HTML', 'html'), ('PDF', 'pdf')]:
+                  with page.expect_download() as pending:
+                      page.get_by_role('button', name=f'Download scenario report ({label})', exact=True).click()
+                  pending.value.save_as(evidence / f'scenario.{suffix}')
+              assert 'aegisrisk' in (evidence / 'scenario.html').read_text().lower()
+              pdf = PdfReader(evidence / 'scenario.pdf')
+              assert 'NOT A CREDIT DECISION' in '\n'.join(p.extract_text() for p in pdf.pages)
+              browser.close()
+          assert httpx.get(site + '/api/portfolio', timeout=30).raise_for_status().json()['summary'] == original
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as out:
+              out.write(f'Public HTTPS visitor check passed for {site}.\n\n')
+              out.write(f'40 fictional facilities. Baseline expected loss INR {scenario["baseline_el"]:,.2f}. ')
+              out.write(f'Energy stress expected loss INR {scenario["stressed_el"]:,.2f}.\n\n')
+              out.write('Invalid-input recovery, CSV/XLSX previews, disabled saving, JSON/HTML/PDF downloads and four theme/viewport captures passed.\n')
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: hosted-visitor-evidence
+          path: hosted-evidence/
+          if-no-files-found: warn
+          retention-days: 7
