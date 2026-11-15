@@ -1,14 +1,23 @@
 # Fictional public-demo deployment
 
-Prepared and image-verified 2026-10-26. The owner chose to keep AegisRisk on GitHub for now. Hosting is intentionally deferred; no service was created. This is a reproducible package and retained proposal, not evidence of a live service. See [release readiness](RELEASE_READINESS.md) for the unfinished authenticated workbench.
+The public fictional-data demo went live on 15 November 2026. [Open the live AegisRisk demo](https://aegisrisk-demo.onrender.com). The free service sleeps after 15 minutes of inactivity and can take about a minute to wake.
 
-## Proposed hosting and cost boundary
+## Verified live deployment
 
-If the owner explicitly resumes deployment, the retained proposal is one **Render Free web service**, named `aegisrisk-demo`, in Frankfurt, from this public GitHub repository. The [Blueprint](../render.yaml) selects Docker, the Free compute plan, a managed HTTPS endpoint, `/healthz` readiness and manual deployments. No database service, persistent disk, GPU, external AI, custom domain or paid upgrade is requested.
+- Render marked the first deployment live on 15 November at 17:30 UTC. The deployed source is [3fb31f1](https://github.com/animeshpthk07/AegisRisk/commit/3fb31f1ce5ee02a8ca0d957514dccd041abe8cca); future GitHub commits require a manual deploy.
+- A fresh anonymous browser verified 40 facilities, INR 115,000,000 exposure and INR 2,769,125 one-year expected loss. The Energy scenario returned INR 3,790,900 stressed expected loss.
+- [Hosted verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/43741897965) exercised CSV and values-only XLSX previews, invalid-input recovery, disabled saving, JSON/HTML/PDF downloads, and dark/light layouts at 1440 and 390 pixels. The run stores screenshots and fictional reports for seven days.
+- [Public health check](https://aegisrisk-demo.onrender.com/healthz) reported a connected database. Render monitors this endpoint. The fictional seed is disposable.
+- The owner approved Render Free in Frankfurt at a $0 limit. The Hobby workspace showed no card on file and zero of 750 included instance hours used before launch. The public repository connection requires no GitHub account authorization.
+
+
+## Hosting configuration and cost boundary
+
+The live service uses one **Render Free web service**, named `aegisrisk-demo`, in Frankfurt, from this public GitHub repository. The [Blueprint](../render.yaml) selects Docker, the Free compute plan, a managed HTTPS endpoint, `/healthz` readiness and manual deployments. No database service, persistent disk, GPU, external AI, custom domain or paid upgrade is requested.
 
 Official [pricing](https://render.com/pricing) lists the Free web service at $0/month with 512 MB RAM. The [Free limits](https://render.com/docs/free), checked on the date above, include idle shutdown after 15 minutes, cold starts, ephemeral files and 750 shared instance hours per workspace per month. Hobby usage currently includes 5 GB outbound bandwidth and 500 standard build minutes per month. Recheck the account's actual included usage before applying.
 
-**Free compute is not an unconditional zero-bill guarantee.** A workspace with a payment method can incur bandwidth/build overages. Proposed spending authorization is **$0**, with no payment method added, no paid plan and no overages accepted. The provider documents suspension/build blocking when a payment method is absent and included allowances are exhausted. If account verification requires a card, or an existing billing setup can incur overages, stop for an explicit owner decision. Do not treat a pipeline spend limit as a universal bandwidth cap.
+**Free compute is not an unconditional zero-bill guarantee.** A workspace with a payment method can incur bandwidth/build overages. The approved spending limit is **$0**, with no payment method added, no paid plan and no overages accepted. The provider documents suspension/build blocking when a payment method is absent and included allowances are exhausted. If account verification requires a card, or an existing billing setup can incur overages, stop for an explicit owner decision. Do not treat a pipeline spend limit as a universal bandwidth cap.
 
 The account owner must approve the actual Render account, the public fictional-data endpoint and any sign-up terms or GitHub access request before deployment. Prefer the public repository URL where supported; do not grant access to unrelated repositories. The application itself needs no API key, database password or other runtime secret. Source publication here does not create a hosting account or service.
 
@@ -59,7 +68,7 @@ The repository owner remains responsible for the hosting account and usage revie
 
 For a faulty deployment, use Render's available rollback to a previously verified build, or manually redeploy its recorded commit if the old build is no longer retained. Free-service rollback retention is limited; verify availability in the dashboard. Re-run the harmless live smoke checks and record the actual recovered SHA. If safe operation or $0 billing cannot be maintained, suspend the demo. The dataset is recreated from source, so recovery does not require preserving user uploads.
 
-## Release record — GitHub only
+## Historical GitHub-only record — 26 October 2026
 
 - Owner decision, 2026-10-26: keep the project on GitHub for now; hosting deferred.
 - Verified candidate: `9b5715a0626f6e4a94e52fdabf7904dc117627ec`.
@@ -69,6 +78,6 @@ For a faulty deployment, use Render's available rollback to a previously verifie
 - Initial image failures: non-root Nginx could not create `/var/lib/nginx/fastcgi`; all remaining temporary paths were moved under `/tmp`, after which run #3 passed.
 - Account, billed-plan/payment-method review, hosted URL, live smoke, screenshots and hosted operations: deferred; not performed or claimed.
 
-Recheck provider terms, billing and the candidate checks if the owner reopens deployment. Do not create a hosting account or service from this retained proposal alone.
+Recheck the Free plan, the workspace payment settings and the candidate checks before changing the live deployment.
 
 This public fictional demo does not complete authentication, authorization/tenant separation, shared persistence, CSRF strategy, a full script/style CSP, screen-reader testing or real-world model validation. Keep those gaps visible rather than relabelling this package as the complete five-phase product.
