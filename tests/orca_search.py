@@ -28,6 +28,9 @@ def heard(offset, phrase):
                       if 'SPEECH OUTPUT:' in s]
             if phrase.casefold() in ' '.join(spoken).casefold():
                 print(f'Orca announced {phrase!r}', flush=True)
+                if os.environ.get('ORCA_LISTENING_REVIEW') == '1':
+                    # Leave time to hear the queued phrase before the next key.
+                    time.sleep(4)
                 return
         time.sleep(0.2)
     raise AssertionError(f'Expected {phrase!r} in Orca speech. Heard {spoken[-20:]!r}')

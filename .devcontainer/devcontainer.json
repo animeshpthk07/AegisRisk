@@ -1,0 +1,21 @@
+{
+  "name": "AegisRisk private demo",
+  "build": {
+    "dockerfile": "../deploy/demo/Dockerfile",
+    "context": ".."
+  },
+  "overrideCommand": false,
+  "remoteUser": "demo",
+  "forwardPorts": [
+    10000
+  ],
+  "portsAttributes": {
+    "10000": {
+      "label": "AegisRisk fictional portfolio",
+      "onAutoForward": "notify"
+    }
+  },
+  "otherPortsAttributes": {
+    "onAutoForward": "ignore"
+  }
+}

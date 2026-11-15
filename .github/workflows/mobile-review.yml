@@ -1,0 +1,119 @@
+name: Mobile and recorded speech review
+on:
+  push:
+    paths:
+      - '.github/workflows/mobile-review.yml'
+      - 'tests/mobile/**'
+  workflow_dispatch:
+    inputs:
+      audio_run:
+        description: 'Optional run number ID containing the orca-facility-search-audio artifact'
+        required: false
+        type: string
+permissions:
+  contents: read
+jobs:
+  android:
+    name: Chrome on an Android emulator
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - name: Start the bounded fictional demo
+        run: |
+          docker build -f deploy/demo/Dockerfile -t aegisrisk-mobile .
+          docker run -d --name demo --memory=512m --cap-drop=ALL --security-opt=no-new-privileges -p 127.0.0.1:3000:10000 aegisrisk-mobile
+          curl --fail --silent --retry 50 --retry-delay 2 --retry-all-errors http://127.0.0.1:3000/healthz
+      - name: Install the Android browser driver
+        run: npm install --prefix "$RUNNER_TEMP/android-review" --no-package-lock --no-audit playwright@1.64.0
+      - name: Give the isolated runner access to its virtual CPU accelerator
+        run: sudo setfacl -m "u:$(id -un):rw" /dev/kvm
+      - name: Search, open and clear a facility on Android
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          target: google_apis_playstore
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: |
+            adb shell am set-debug-app --persistent com.android.chrome
+            adb reverse tcp:3000 tcp:3000
+            adb shell dumpsys package com.android.chrome | grep -m1 versionName
+            NODE_PATH="$RUNNER_TEMP/android-review/node_modules" timeout 180s node tests/mobile/facility-search.cjs
+      - name: Save device screenshots
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-facility-review
+          path: mobile-evidence/
+          if-no-files-found: error
+          retention-days: 7
+  audio:
+    name: Transcribe the recorded waveform on CPU
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Fetch the synthetic recording from this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AUDIO_RUN: ${{ inputs.audio_run }}
+        run: |
+          if [ -z "$AUDIO_RUN" ]; then
+            AUDIO_RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=orca-facility-search-audio&per_page=100" --jq '.artifacts | map(select(.expired == false)) | max_by(.id) | .workflow_run.id')
+          fi
+          [[ "$AUDIO_RUN" =~ ^[0-9]+$ ]]
+          echo "Source recording from run $AUDIO_RUN"
+          gh run download "$AUDIO_RUN" --repo "$GITHUB_REPOSITORY" --name orca-facility-search-audio --dir recording
+          sha256sum recording/orca-facility-search.wav
+      - name: Transcribe without a prompt or expected phrases
+        run: |
+          pip install faster-whisper==1.2.1
+          python - <<'PY'
+          from pathlib import Path
+          import os
+          import av
+          import numpy as np
+          from faster_whisper import WhisperModel
+
+          # Decode the runner's PCM WAV explicitly and supply mono, 16 kHz samples.
+          resampler = av.AudioResampler(format='fltp', layout='mono', rate=16000)
+          frames = []
+          with av.open('recording/orca-facility-search.wav') as recording:
+              for frame in recording.decode(audio=0):
+                  frames.extend(resampler.resample(frame))
+          frames.extend(resampler.resample(None))
+          samples = np.concatenate([frame.to_ndarray().ravel() for frame in frames])
+
+          transcripts = []
+          for size in ('small.en', 'medium.en'):
+              model = WhisperModel(size, device='cpu', compute_type='int8', cpu_threads=4)
+              segments, _ = model.transcribe(samples, language='en', beam_size=5,
+                                             condition_on_previous_text=False, word_timestamps=True)
+              lines = [f'{s.start:.2f}-{s.end:.2f}  {s.text.strip()}' for s in segments]
+              if not lines:
+                  raise RuntimeError(f'No speech recognized by {size}')
+              transcripts.append(size + '\n' + '\n'.join(lines))
+              del model
+          transcript = '\n\n'.join(transcripts) + '\n'
+          print(transcript)
+          Path('transcript.txt').write_text(transcript, encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('Unprompted speech recognition on the same recorded waveform\n\n')
+              summary.writelines('    ' + line + '\n' for line in transcript.splitlines())
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: recorded-speech-transcript
+          path: transcript.txt
+          retention-days: 7
