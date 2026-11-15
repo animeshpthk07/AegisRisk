@@ -81,6 +81,7 @@ jobs:
           pip install faster-whisper==1.2.1
           python - <<'PY'
           from pathlib import Path
+          import os
           import av
           import numpy as np
           from faster_whisper import WhisperModel
@@ -94,16 +95,22 @@ jobs:
           frames.extend(resampler.resample(None))
           samples = np.concatenate([frame.to_ndarray().ravel() for frame in frames])
 
-          model = WhisperModel('small.en', device='cpu', compute_type='int8', cpu_threads=4)
-          segments, _ = model.transcribe(samples, language='en',
-                                         beam_size=5, condition_on_previous_text=False,
-                                         word_timestamps=True)
-          lines = [f'{s.start:.2f}-{s.end:.2f}  {s.text.strip()}' for s in segments]
-          if not lines:
-              raise RuntimeError('No speech recognized')
-          transcript = '\n'.join(lines) + '\n'
+          transcripts = []
+          for size in ('small.en', 'medium.en'):
+              model = WhisperModel(size, device='cpu', compute_type='int8', cpu_threads=4)
+              segments, _ = model.transcribe(samples, language='en', beam_size=5,
+                                             condition_on_previous_text=False, word_timestamps=True)
+              lines = [f'{s.start:.2f}-{s.end:.2f}  {s.text.strip()}' for s in segments]
+              if not lines:
+                  raise RuntimeError(f'No speech recognized by {size}')
+              transcripts.append(size + '\n' + '\n'.join(lines))
+              del model
+          transcript = '\n\n'.join(transcripts) + '\n'
           print(transcript)
           Path('transcript.txt').write_text(transcript, encoding='utf-8')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('Unprompted speech recognition on the same recorded waveform\n\n')
+              summary.writelines('    ' + line + '\n' for line in transcript.splitlines())
           PY
       - uses: actions/upload-artifact@v7
         with:
