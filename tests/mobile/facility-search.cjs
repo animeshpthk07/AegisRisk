@@ -9,6 +9,7 @@ async function run() {
   try {
     const context = await device.launchBrowser({ hasTouch: true, viewport: null });
     const page = await context.newPage();
+    await page.bringToFront();
     await page.goto('http://127.0.0.1:3000/#exposures');
     const panel = page.locator('#exposures');
     const search = panel.getByRole('textbox', { name: 'Search facilities' });
@@ -22,8 +23,14 @@ async function run() {
     assert.ok(viewport.width > 0 && viewport.width < 600, 'Expected a phone-sized CSS viewport');
     console.log(device.model(), userAgent, viewport);
     await count(40);
+    await search.evaluate(field => field.addEventListener('touchstart', event => {
+      if (event.isTrusted && event.touches.length > 0) field.dataset.receivedTouch = 'yes';
+    }, { once: true }));
     await search.tap();
-    await device.shell('input text SYN-001');
+    assert.equal(await search.getAttribute('data-received-touch'), 'yes');
+    assert.ok(await search.evaluate(el => el === document.activeElement), 'Search should receive focus');
+    await page.keyboard.insertText('SYN-001');
+    assert.equal(await search.inputValue(), 'SYN-001');
     await count(1);
     await picker.selectOption('SYN-001');
     await detail.waitFor();
