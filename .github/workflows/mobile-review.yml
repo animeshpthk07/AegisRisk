@@ -42,9 +42,10 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
+            adb shell am set-debug-app --persistent com.android.chrome
             adb reverse tcp:3000 tcp:3000
             adb shell dumpsys package com.android.chrome | grep -m1 versionName
-            NODE_PATH="$RUNNER_TEMP/android-review/node_modules" node tests/mobile/facility-search.cjs
+            NODE_PATH="$RUNNER_TEMP/android-review/node_modules" timeout 180s node tests/mobile/facility-search.cjs
       - name: Save device screenshots
         uses: actions/upload-artifact@v7
         with:
@@ -80,10 +81,21 @@ jobs:
           pip install faster-whisper==1.2.1
           python - <<'PY'
           from pathlib import Path
+          import av
+          import numpy as np
           from faster_whisper import WhisperModel
 
+          # Decode the runner's PCM WAV explicitly and supply mono, 16 kHz samples.
+          resampler = av.AudioResampler(format='fltp', layout='mono', rate=16000)
+          frames = []
+          with av.open('recording/orca-facility-search.wav') as recording:
+              for frame in recording.decode(audio=0):
+                  frames.extend(resampler.resample(frame))
+          frames.extend(resampler.resample(None))
+          samples = np.concatenate([frame.to_ndarray().ravel() for frame in frames])
+
           model = WhisperModel('small.en', device='cpu', compute_type='int8', cpu_threads=4)
-          segments, _ = model.transcribe('recording/orca-facility-search.wav', language='en',
+          segments, _ = model.transcribe(samples, language='en',
                                          beam_size=5, condition_on_previous_text=False,
                                          word_timestamps=True)
           lines = [f'{s.start:.2f}-{s.end:.2f}  {s.text.strip()}' for s in segments]
