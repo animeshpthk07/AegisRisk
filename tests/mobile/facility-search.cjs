@@ -7,7 +7,7 @@ async function run() {
   assert.ok(device, 'Android emulator must be connected');
   device.setDefaultTimeout(20000);
   try {
-    const context = await device.launchBrowser();
+    const context = await device.launchBrowser({ hasTouch: true, viewport: null });
     const page = await context.newPage();
     await page.goto('http://127.0.0.1:3000/#exposures');
     const panel = page.locator('#exposures');
@@ -18,13 +18,13 @@ async function run() {
     const count = n => status.filter({ hasText: 'Showing ' + n + ' of 40 facilities' }).waitFor();
     const userAgent = await page.evaluate(() => navigator.userAgent);
     assert.match(userAgent, /Android/);
-    console.log(device.model(), userAgent);
+    const viewport = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }));
+    assert.ok(viewport.width > 0 && viewport.width < 600, 'Expected a phone-sized CSS viewport');
+    console.log(device.model(), userAgent, viewport);
     await count(40);
     await search.tap();
     await device.shell('input text SYN-001');
     await count(1);
-    // Return from the software keyboard to the facility controls.
-    await search.press('Escape');
     await picker.selectOption('SYN-001');
     await detail.waitFor();
     await fs.mkdir('mobile-evidence', { recursive: true });
