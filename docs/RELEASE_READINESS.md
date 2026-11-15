@@ -1,6 +1,6 @@
 # Release readiness
 
-Updated 2026-11-14. This document defines the evidence needed for a release; it does not declare all five project phases complete.
+Updated 2026-11-15. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
 ## Current deliverable
 
@@ -19,6 +19,10 @@ Download the [40-facility fictional portfolio](energy-sector-example.csv) and fo
 The [screen-reader verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/43595902477/job/132450208704) ran Orca 46.1 with Chromium 156.0.8078.4. Orca announced “Search facilities”, “Showing 1 of 40 facilities” after filtering to SYN-001, and “Showing 40 of 40 facilities” after clearing. The test opened the facility using the keyboard and confirmed that focus ended in the search field. The previous run caught a missed announcement after clearing even though the table had updated. The visible count now updates immediately and a separate live region announces the settled count. The evidence is the screen reader’s speech transcript.
 
 The [touch-screen regression](../tests/browser/test_csv_preview.py) uses a 390 × 844 viewport, checks the search and facility controls for horizontal clipping, opens SYN-001, clears the search and checks the restored 40 rows and focus. It runs in the three-engine browser suite.
+
+On 15 November, [the listening-evidence run](https://github.com/animeshpthk07/AegisRisk/actions/runs/43686637864) captured 43.2 seconds from the isolated desktop’s playback monitor, including 36 one-second windows with detectable sound. Download [the ZIP with the WAV](https://github.com/animeshpthk07/AegisRisk/actions/runs/43686637864/artifacts/14151140533) while the seven-day artifact is available. To reproduce the recording, run the Credit explorer screen reader workflow on this review branch. Only the fictional session is recorded. A listener should report the spoken counts and whether the announcements are clear and complete.
+
+For a phone review, open a Codespace using this branch’s **AegisRisk private demo** configuration. It starts the shipped demo image and forwards port 10000. In the Ports tab, confirm that its visibility is Private and open its address on the phone while signed in to the owning GitHub account. The app should show the built-in 40-facility portfolio.
 
 Hands-on review remains open. On a physical phone, search the built-in portfolio for SYN-001, open the facility, then clear the search. Record the phone, browser, restored count and any clipped controls. For a listening review, record the screen reader and browser, the two counts heard and where keyboard focus ends.
 
