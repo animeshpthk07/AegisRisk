@@ -34,12 +34,19 @@ jobs:
           ACCESSIBILITY_ENABLED: '1'
           NO_AT_BRIDGE: '0'
           LANG: en_US.UTF-8
+          ORCA_LISTENING_REVIEW: '1'
         run: |
           export ORCA_LOG="$RUNNER_TEMP/orca.log"
           xvfb-run -a dbus-run-session -- bash -euo pipefail <<'SESSION'
           gsettings set org.gnome.desktop.interface toolkit-accessibility true
           openbox > /tmp/openbox.log 2>&1 &
           pulseaudio --start --exit-idle-time=-1
+          # The monitor captures only this runner's synthetic desktop playback.
+          pactl load-module module-null-sink sink_name=review rate=22050 channels=1
+          pactl set-default-sink review
+          export PULSE_SINK=review
+          parec --device=review.monitor --raw --format=s16le --rate=22050 --channels=1 > "$RUNNER_TEMP/orca.pcm" &
+          recorder=$!
           orca --version
           # Orca opens its own debug stream. A terminal makes each utterance
           # available immediately, including the last one before the next key.
@@ -47,11 +54,44 @@ jobs:
             --command 'exec orca --enable=speech --disable=braille --debug-file=/dev/stdout' \
             /dev/null > "$ORCA_LOG" 2>&1 &
           reader=$!
-          trap 'kill "$reader" 2>/dev/null || true' EXIT
+          trap 'kill "$reader" "$recorder" 2>/dev/null || true' EXIT
           for i in {1..30}; do
             kill -0 "$reader" || { tail -20 "$ORCA_LOG"; exit 1; }
             if [ -s "$ORCA_LOG" ]; then break; fi
             sleep 1
           done
           python tests/orca_search.py
+          kill -INT "$recorder"
+          wait "$recorder" || true
           SESSION
+      - name: Verify audible playback and write the listening sample
+        run: |
+          python - <<'PY'
+          import os
+          import wave
+          from array import array
+          from pathlib import Path
+
+          folder = Path(os.environ['RUNNER_TEMP'])
+          raw = (folder / 'orca.pcm').read_bytes()
+          samples = array('h', raw)
+          rate = 22050
+          # Count one-second windows with detectable audio. Silence cannot pass.
+          audible = sum(
+              sum(value * value for value in block) > len(block) * 100**2
+              for block in (samples[i:i + rate] for i in range(0, len(samples), rate))
+          )
+          if audible < 3:
+              raise RuntimeError(f'Only {audible} seconds contained audible output')
+          with wave.open(str(folder / 'orca-facility-search.wav'), 'wb') as out:
+              out.setparams((1, 2, rate, 0, 'NONE', 'not compressed'))
+              out.writeframes(raw)
+          print(f'{len(samples) / rate:.1f}s captured, {audible} audible windows. Human review pending.')
+          PY
+      - name: Save the synthetic session audio for listening
+        uses: actions/upload-artifact@v7
+        with:
+          name: orca-facility-search-audio
+          path: ${{ runner.temp }}/orca-facility-search.wav
+          if-no-files-found: error
+          retention-days: 7
