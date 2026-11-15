@@ -2,6 +2,8 @@
 
 AegisRisk is an educational banking risk workbench. Start with a fictional INR credit portfolio, find where exposure and expected loss are concentrated, then trace the effect of a sector shock to individual facilities. All portfolio loss calculations use a one-year horizon. This independent student project uses synthetic data.
 
+**[Open the live AegisRisk demo](https://aegisrisk-demo.onrender.com).** Explore 40 fictional INR facilities without signing in. An idle Free instance can take about a minute to wake. Portfolio saving is disabled on the public demo.
+
 **Start with the [five-minute case study](docs/CASE_STUDY.md).** It follows a sector shock from ₹70 to ₹185 in a hand-checkable test portfolio and explains how to distinguish supplied PD, model-estimated PD and stressed PD. To run the application, use the [demo guide](docs/DEMO_GUIDE.md). To review its checks and release history, see [release readiness](docs/RELEASE_READINESS.md).
 
 ## What you can inspect
@@ -18,7 +20,7 @@ The application uses Next.js, React and TypeScript for the interface, FastAPI an
 
 Start from the newest entry in [GitHub Releases](https://github.com/animeshpthk07/AegisRisk/releases) for the downloadable source and its verification record. The November 12 example below is pinned so that the figures can be reproduced.
 
-[v0.2.0-preview.2](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) packages the verified workbench at [948b55e](https://github.com/animeshpthk07/AegisRisk/commit/948b55ecda61947dd5397c739e77844793f64daa). All six [application jobs](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829172) and the [demo image check](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829156) passed for that source. Hosting remains deferred.
+[v0.2.0-preview.2](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.2) packages the verified workbench at [948b55e](https://github.com/animeshpthk07/AegisRisk/commit/948b55ecda61947dd5397c739e77844793f64daa). All six [application jobs](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829172) and the [demo image check](https://github.com/animeshpthk07/AegisRisk/actions/runs/43222829156) passed for that source. Hosting was deferred at the time of this release.
 
 **Reproduce the LinkedIn example:** download the [40-facility CSV](docs/energy-sector-example.csv) and follow the [sample report](docs/SAMPLE_RISK_REPORT.md). Annual expected loss rises from ₹11.25 lakh to ₹19.125 lakh when only the assumptions for the 20 Energy facilities change. This is a scenario comparison on fictional data. The [walkthrough](docs/PROJECT_PRESENTATION.md) explains the change and the separate held-out model evaluation.
 
@@ -30,7 +32,7 @@ Source `fb920c2945beb4ed92ef34f7d60cb5a34a5751bb` passed all six jobs in [applic
 
 The run recorded 190 backend tests, 111 Chromium workflow cases plus 11 access cases, passing Firefox/WebKit and PostgreSQL jobs, and 41 reused demo-browser cases plus four runtime cases. The PDF inspection test dependency was patched to pypdf 6.21.4 and its audit passed. Four desktop/mobile overview captures in both themes were reviewed on November 2. These are dated verification results, not proof of complete security or accessibility. [Read the evidence and limits](docs/RELEASE_READINESS.md).
 
-The GitHub pre-release remains pinned to its original source. Hosting stays deferred, external AI stays disabled, and the full five-phase product is not claimed complete.
+The GitHub pre-release remains pinned to its original source. Hosting was deferred at this historical checkpoint. The public demo now uses deterministic explanations.
 
 ## Verified usability checkpoint — 26 October 2026
 
@@ -44,11 +46,9 @@ These checks cover a synthetic educational workflow, not production banking vali
 
 The historical checkpoints below describe when individual features were introduced; they are not separate claims that the full product is complete.
 
-## Public demo preparation
+## Public demo
 
-The [deployment package](docs/DEPLOYMENT.md) keeps saving disabled, application servers private, requests bounded and deployment manual. [Public demo image run #3](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565275) and [application run #61](https://github.com/animeshpthk07/AegisRisk/actions/runs/40322565203) both passed for `9b5715a0626f6e4a94e52fdabf7904dc117627ec`. The image checks include 31 reused browser cases, four runtime cases, startup guards and restart/fresh-container recovery. A non-root Nginx temporary-directory error in the earlier runs was corrected without weakening checks.
-
-**The owner chose to keep AegisRisk on GitHub on 26 October 2026.** The Render Free proposal is retained for a future decision; no hosting service was created and no live URL is claimed. The verified image remains an educational fictional-data demo, not the complete authenticated product.
+The Frankfurt Render Free service runs [3fb31f1](https://github.com/animeshpthk07/AegisRisk/commit/3fb31f1ce5ee02a8ca0d957514dccd041abe8cca) with manual deployments. The built-in portfolio has ₹11,50,00,000 exposure and ₹27,69,125 one-year expected loss. The verified Energy shock increased expected loss to ₹37,90,900. [Hosted verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/43741897965) covers anonymous access, CSV and XLSX previews, input recovery, scenario reports in three formats and four desktop/mobile theme captures. See the [deployment record](docs/DEPLOYMENT.md) for health, cold starts and rollback.
 
 ## Historical foundation checkpoint
 
