@@ -2,11 +2,15 @@
 
 Updated 2026-11-15. This document defines the evidence needed for a release; it does not declare all five project phases complete.
 
+## Public demo — 15 November 2026
+
+[Open the live AegisRisk demo](https://aegisrisk-demo.onrender.com). Render serves the fictional dataset from [3fb31f1](https://github.com/animeshpthk07/AegisRisk/commit/3fb31f1ce5ee02a8ca0d957514dccd041abe8cca) on the Free plan in Frankfurt. [Hosted verification](https://github.com/animeshpthk07/AegisRisk/actions/runs/43741897965) confirms the public visitor workflows. The service may wake slowly after inactivity. [Operations and rollback](DEPLOYMENT.md).
+
 ## Current deliverable
 
 AegisRisk is a public MIT educational workbench using fictional INR credit facilities. It includes bounded CSV/XLSX review, opt-in immutable snapshots, Decimal risk calculations, scenario sensitivity, JSON/HTML/PDF evidence exports and an isolated synthetic Model Lab. External AI is disabled. See [GitHub Releases](https://github.com/animeshpthk07/AegisRisk/releases) for the newest verified source. The 14 November [accessible facility search preview](https://github.com/animeshpthk07/AegisRisk/releases/tag/v0.2.0-preview.3) is tagged at [e2ab081](https://github.com/animeshpthk07/AegisRisk/commit/e2ab081e9df3cc030d14ec85fb070251df04cc0a). The Android and recorded-speech checks described below exercise the same application with additional test tooling. Earlier previews remain available in the release history.
 
-On 2026-10-26 the owner chose to keep the project on GitHub for now. Hosting is intentionally deferred; no service was created, paid plan accepted or hosted URL verified. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
+On 2026-10-26 the owner chose to keep the project on GitHub for now. The demo stayed on GitHub until the public launch recorded above. The subsequent [three-engine application run #69](https://github.com/animeshpthk07/AegisRisk/actions/runs/40371000876) passed all six jobs for `deeb228109af43552b728e3be63140424744d377`. A public repository and passing CI do not establish an authenticated hosted service. Optional workspace tokens are verified in the checkpoint below; production identity and operational controls remain unfinished.
 
 ## Reproduce the November 12 portfolio example
 
@@ -113,8 +117,8 @@ The initial comparison used NextURL, whose loopback normalization rejected valid
 | Database lifecycle | Default save restriction, migrations, repeat seed, restart persistence and duplicate reuse checked | Isolated Compose/PostgreSQL checks pass |
 | Browser usability | Keyboard operation, visible focus, labels, zoom/reflow and supported browser engines verified | Keyboard-only search/scenario/download at 1440/320px, both-theme reflow and reduced-motion checks pass; four overview captures reviewed. The same workflows also pass in Firefox and WebKit; native Chromium search/reflow and screenshot review pass at 200% and 400%. Orca speech output and focus are verified for facility search and clear. See the Android and recorded-speech evidence above for device coverage and listening limitations |
 | Shared-user security | Identity/session handling, authorization/tenant separation, CSRF strategy, full CSP and resource limits reviewed and tested | Token/workspace slice verified in run #112, nonce/resource policy in run #132 and inactivity cleanup in run #160; style-attribute exception, production identity, quotas, storage lifecycle and independent security review remain open |
-| Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); actual hosted operations deferred, persistent shared-user operations incomplete |
-| Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Deferred by owner; image verified in CI, no hosted application claimed |
+| Operations | Documented quotas, retention, backups/restore where storage is enabled, monitoring and rollback | Demo limits, ephemeral storage and rollback documented in [DEPLOYMENT.md](DEPLOYMENT.md); Render health monitoring active, persistent shared-user operations outside this deployment |
+| Hosted demo | Approved hosting account/cost, HTTPS URL and deployed-commit smoke evidence | Live on Render Free in Frankfurt. See the deployed commit, health check and hosted verification above. |
 | Release and career materials | Accurate release notes, current screenshots, walkthrough and approved final public copy | [Portfolio releases](https://github.com/animeshpthk07/AegisRisk/releases), [case study](CASE_STUDY.md), [sample report](SAMPLE_RISK_REPORT.md) and walkthrough published. The [LinkedIn project announcement](https://www.linkedin.com/feed/update/urn:li:activity:7526560121762799616/) was published on 12 November with the fictional 40-facility stress example. |
 
 Run #50 recorded 141 backend tests (one dependency deprecation warning), 19 frontend tests and 90 Chromium cases in each of two environments. Native browser tests passed in 104.15s and Compose/PostgreSQL browser tests in 105.66s. The two browser runs exercise the same cases and must not be counted as 180 distinct cases. Both dependency audits reported no known vulnerabilities at this checkpoint; these are dated checks. CI artifacts expire after seven days; preserve only synthetic release evidence needed for reproducibility.
@@ -155,12 +159,12 @@ A read-only public demonstration does not complete the authenticated workbench. 
 ## Remaining work order
 
 1. Close concrete usability and security defects with focused regression checks.
-2. Keep the verified demo image, provider configuration and cost/access proposal in GitHub; hosting remains deferred by owner decision.
-3. Resume deployment only if the owner explicitly reopens it; then confirm current provider terms and any required account, spending or access approval, deploy and test the real URL.
+2. Keep the deployed revision and public demo evidence in the deployment record.
+3. Before a manual update, recheck the Free plan, candidate application and demo image. Repeat the hosted verification after deployment.
 4. Keep the published educational preview and its limitations accurate; create future releases only when their stated acceptance criteria pass.
 5. Keep the published LinkedIn announcement and GitHub walkthrough consistent with the downloadable fictional example.
 
-A Render Free proposal with a $0 budget is documented, but it is not activated. Provider/account, domain and operations ownership must be confirmed only if deployment is reopened. No hosting purchase or new security-sensitive access is authorized by this document. Synthetic model performance must remain labelled synthetic; it cannot be presented as bank validation or real-world hiring/credit-decision readiness.
+The public demonstration uses Render Free with a $0 spending limit. Synthetic model performance applies only to the fictional data.
 
 ## Release record template
 
